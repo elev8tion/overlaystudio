@@ -11,6 +11,9 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
   <script async src="https://docs.opencv.org/4.8.0/opencv.js" onload="window.cvReady = true;"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+  <!-- Google API for Drive Integration -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script src="https://apis.google.com/js/api.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <style>
     :root {
@@ -514,6 +517,189 @@
     };
 
     // ============================================
+    // GOOGLE DRIVE INTEGRATION
+    // ============================================
+    const GOOGLE_CLIENT_ID = '539591954789-ch0slm7f0nbcn582bgurqffs7em5udln.apps.googleusercontent.com';
+    const GOOGLE_API_KEY = ''; // Optional: Add if you have one
+    const GOOGLE_SCOPES = 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.appdata';
+    const DRIVE_FOLDER_NAME = 'OverlayStudio';
+
+    let googleTokenClient = null;
+    let googleAccessToken = null;
+
+    // Initialize Google API
+    const initGoogleApi = () => {
+      return new Promise((resolve) => {
+        if (window.gapi) {
+          gapi.load('client', async () => {
+            await gapi.client.init({
+              discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'],
+            });
+            resolve(true);
+          });
+        } else {
+          resolve(false);
+        }
+      });
+    };
+
+    // Initialize Google Identity Services
+    const initGoogleIdentity = (onTokenReceived) => {
+      if (window.google && window.google.accounts) {
+        googleTokenClient = google.accounts.oauth2.initTokenClient({
+          client_id: GOOGLE_CLIENT_ID,
+          scope: GOOGLE_SCOPES,
+          callback: (response) => {
+            if (response.access_token) {
+              googleAccessToken = response.access_token;
+              onTokenReceived(response.access_token);
+            }
+          },
+        });
+        return true;
+      }
+      return false;
+    };
+
+    // Request Google Drive access
+    const requestDriveAccess = () => {
+      if (googleTokenClient) {
+        if (googleAccessToken) {
+          googleTokenClient.requestAccessToken({ prompt: '' });
+        } else {
+          googleTokenClient.requestAccessToken({ prompt: 'consent' });
+        }
+      }
+    };
+
+    // Get or create the OverlayStudio folder
+    const getOrCreateDriveFolder = async (folderName = DRIVE_FOLDER_NAME) => {
+      if (!googleAccessToken) return null;
+
+      // Search for existing folder
+      const searchResponse = await fetch(
+        `https://www.googleapis.com/drive/v3/files?q=name='${folderName}' and mimeType='application/vnd.google-apps.folder' and trashed=false&fields=files(id,name)`,
+        { headers: { Authorization: `Bearer ${googleAccessToken}` } }
+      );
+      const searchData = await searchResponse.json();
+
+      if (searchData.files && searchData.files.length > 0) {
+        return searchData.files[0].id;
+      }
+
+      // Create folder if not exists
+      const createResponse = await fetch('https://www.googleapis.com/drive/v3/files', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${googleAccessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: folderName,
+          mimeType: 'application/vnd.google-apps.folder',
+        }),
+      });
+      const createData = await createResponse.json();
+      return createData.id;
+    };
+
+    // Save file to Google Drive
+    const saveToDrive = async (fileName, content, mimeType = 'application/json', folderId = null) => {
+      if (!googleAccessToken) throw new Error('Not authenticated with Google Drive');
+
+      const targetFolderId = folderId || await getOrCreateDriveFolder();
+
+      // Check if file exists (to update instead of create duplicate)
+      const searchResponse = await fetch(
+        `https://www.googleapis.com/drive/v3/files?q=name='${fileName}' and '${targetFolderId}' in parents and trashed=false&fields=files(id,name)`,
+        { headers: { Authorization: `Bearer ${googleAccessToken}` } }
+      );
+      const searchData = await searchResponse.json();
+      const existingFileId = searchData.files?.[0]?.id;
+
+      const metadata = {
+        name: fileName,
+        mimeType: mimeType,
+      };
+
+      if (!existingFileId) {
+        metadata.parents = [targetFolderId];
+      }
+
+      const form = new FormData();
+      form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+      form.append('file', new Blob([typeof content === 'string' ? content : JSON.stringify(content, null, 2)], { type: mimeType }));
+
+      const url = existingFileId
+        ? `https://www.googleapis.com/upload/drive/v3/files/${existingFileId}?uploadType=multipart`
+        : 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart';
+
+      const response = await fetch(url, {
+        method: existingFileId ? 'PATCH' : 'POST',
+        headers: { Authorization: `Bearer ${googleAccessToken}` },
+        body: form,
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error?.message || 'Failed to save to Drive');
+      }
+
+      return await response.json();
+    };
+
+    // List files in OverlayStudio folder
+    const listDriveFiles = async (folderId = null) => {
+      if (!googleAccessToken) return [];
+
+      const targetFolderId = folderId || await getOrCreateDriveFolder();
+      if (!targetFolderId) return [];
+
+      const response = await fetch(
+        `https://www.googleapis.com/drive/v3/files?q='${targetFolderId}' in parents and trashed=false&fields=files(id,name,mimeType,modifiedTime,size)&orderBy=modifiedTime desc`,
+        { headers: { Authorization: `Bearer ${googleAccessToken}` } }
+      );
+      const data = await response.json();
+      return data.files || [];
+    };
+
+    // Load file from Google Drive
+    const loadFromDrive = async (fileId) => {
+      if (!googleAccessToken) throw new Error('Not authenticated with Google Drive');
+
+      const response = await fetch(
+        `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
+        { headers: { Authorization: `Bearer ${googleAccessToken}` } }
+      );
+
+      if (!response.ok) {
+        throw new Error('Failed to load file from Drive');
+      }
+
+      const text = await response.text();
+      try {
+        return JSON.parse(text);
+      } catch {
+        return text;
+      }
+    };
+
+    // Delete file from Google Drive
+    const deleteFromDrive = async (fileId) => {
+      if (!googleAccessToken) throw new Error('Not authenticated with Google Drive');
+
+      const response = await fetch(
+        `https://www.googleapis.com/drive/v3/files/${fileId}`,
+        {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${googleAccessToken}` },
+        }
+      );
+
+      return response.ok;
+    };
+
+    // ============================================
     // UTILITY FUNCTIONS
     // ============================================
     const estimatePhoneme = (mouthOpenness, mouthWidth) => {
@@ -812,6 +998,14 @@
       const [isTranscribing, setIsTranscribing] = useState(false);
       const [transcribeProgress, setTranscribeProgress] = useState('');
 
+      // Google Drive state
+      const [driveConnected, setDriveConnected] = useState(false);
+      const [driveLoading, setDriveLoading] = useState(false);
+      const [driveFiles, setDriveFiles] = useState([]);
+      const [driveFolderId, setDriveFolderId] = useState(null);
+      const [driveStatus, setDriveStatus] = useState('');
+      const [showDrivePanel, setShowDrivePanel] = useState(false);
+
       // Check OpenCV loading
       useEffect(() => {
         const check = setInterval(() => {
@@ -822,6 +1016,163 @@
         }, 500);
         return () => clearInterval(check);
       }, []);
+
+      // Initialize Google Drive API
+      useEffect(() => {
+        const initGoogle = async () => {
+          // Wait for Google scripts to load
+          const checkGoogle = setInterval(() => {
+            if (window.google && window.google.accounts && window.gapi) {
+              clearInterval(checkGoogle);
+
+              initGoogleApi().then(() => {
+                const initialized = initGoogleIdentity((token) => {
+                  setDriveConnected(true);
+                  setDriveStatus('Connected');
+                  // Load files after connection
+                  refreshDriveFiles();
+                });
+
+                if (!initialized) {
+                  console.warn('Google Identity Services not available');
+                }
+              });
+            }
+          }, 500);
+
+          // Timeout after 10 seconds
+          setTimeout(() => clearInterval(checkGoogle), 10000);
+        };
+
+        initGoogle();
+      }, []);
+
+      // Google Drive helper functions
+      const connectToDrive = () => {
+        setDriveLoading(true);
+        setDriveStatus('Connecting...');
+        requestDriveAccess();
+        // Token callback will handle the rest
+        setTimeout(() => setDriveLoading(false), 3000);
+      };
+
+      const refreshDriveFiles = async () => {
+        if (!googleAccessToken) return;
+        setDriveLoading(true);
+        try {
+          const folderId = await getOrCreateDriveFolder();
+          setDriveFolderId(folderId);
+          const files = await listDriveFiles(folderId);
+          setDriveFiles(files);
+          setDriveStatus(`${files.length} files`);
+        } catch (err) {
+          console.error('Drive refresh error:', err);
+          setDriveStatus('Error loading files');
+        }
+        setDriveLoading(false);
+      };
+
+      const saveCurrentToDrive = async (type = 'avatar_control') => {
+        if (!driveConnected || lipSyncData.length === 0) return;
+
+        setDriveLoading(true);
+        setDriveStatus('Saving...');
+        try {
+          const timestamp = new Date().toISOString().split('T')[0];
+          const baseName = videoFile?.name.replace(/\.[^/.]+$/, '') || 'export';
+
+          if (type === 'avatar_control') {
+            // Save full avatar control JSON
+            const blinkPattern = generateBlinkPattern(videoDuration, 15);
+            const breathPauses = detectBreathPauses(scriptWords);
+
+            const data = {
+              source: videoFile?.name,
+              exportedAt: new Date().toISOString(),
+              duration: videoDuration,
+              fps: 15,
+              totalFrames: lipSyncData.length,
+              exportVersion: '2.0',
+              script: { text: scriptText, words: scriptWords },
+              alignmentScore,
+              avatarControl: {
+                suggestedBlinks: blinkPattern,
+                breathPauses: breathPauses,
+                stats: {
+                  avgMouthOpenness: lipSyncData.length > 0 ? (lipSyncData.reduce((s, f) => s + f.mouthOpenness, 0) / lipSyncData.length).toFixed(3) : 0,
+                  avgEyeOpenness: lipSyncData[0]?.eyes ? (lipSyncData.reduce((s, f) => s + (f.eyes?.avg || 0), 0) / lipSyncData.length).toFixed(3) : 0,
+                  blinkCount: lipSyncData.filter(f => f.eyes?.isBlinking).length,
+                }
+              },
+              frames: lipSyncData
+            };
+
+            await saveToDrive(`${baseName}_${timestamp}.json`, data, 'application/json', driveFolderId);
+          } else if (type === 'patterns') {
+            // Save pattern library
+            const allPatterns = await loadPatterns();
+            await saveToDrive(`patterns_${timestamp}.json`, allPatterns, 'application/json', driveFolderId);
+          }
+
+          await refreshDriveFiles();
+          setDriveStatus('Saved!');
+          setTimeout(() => setDriveStatus(`${driveFiles.length} files`), 2000);
+        } catch (err) {
+          console.error('Drive save error:', err);
+          setDriveStatus('Save failed');
+        }
+        setDriveLoading(false);
+      };
+
+      const loadFileFromDrive = async (fileId, fileName) => {
+        setDriveLoading(true);
+        setDriveStatus('Loading...');
+        try {
+          const data = await loadFromDrive(fileId);
+
+          // Check what type of file it is
+          if (data.frames && data.avatarControl) {
+            // Avatar control file - load into lipSyncData
+            setLipSyncData(data.frames);
+            if (data.script?.text) setScriptText(data.script.text);
+            if (data.script?.words) setScriptWords(data.script.words);
+            if (data.alignmentScore) setAlignmentScore(data.alignmentScore);
+            setDriveStatus('Loaded avatar data');
+          } else if (Array.isArray(data) && data[0]?.category) {
+            // Pattern library
+            for (const pattern of data) {
+              await savePattern(pattern);
+            }
+            const updated = await loadPatterns();
+            setPatterns(updated);
+            setDriveStatus('Loaded patterns');
+          } else {
+            setDriveStatus('Unknown file format');
+          }
+
+          setTimeout(() => setDriveStatus(`${driveFiles.length} files`), 2000);
+        } catch (err) {
+          console.error('Drive load error:', err);
+          setDriveStatus('Load failed');
+        }
+        setDriveLoading(false);
+      };
+
+      const deleteFileFromDrive = async (fileId) => {
+        if (!confirm('Delete this file from Google Drive?')) return;
+
+        setDriveLoading(true);
+        try {
+          await deleteFromDrive(fileId);
+          await refreshDriveFiles();
+          setDriveStatus('Deleted');
+          setTimeout(() => setDriveStatus(`${driveFiles.length - 1} files`), 1500);
+        } catch (err) {
+          console.error('Drive delete error:', err);
+          setDriveStatus('Delete failed');
+        }
+        setDriveLoading(false);
+      };
 
       // Check face-api.js loading
       useEffect(() => {
@@ -2563,9 +2914,130 @@
                 {faceApiLoaded ? <span className="badge badge-success">face-api</span> : <span className="badge badge-warning">face-api...</span>}
                 {recognitionSupported && <span className="badge badge-info">Speech</span>}
                 {videoUrl && <span className="badge badge-info">Video</span>}
+                {/* Google Drive Badge */}
+                <button
+                  className={`badge ${driveConnected ? 'badge-success' : 'badge-warning'}`}
+                  onClick={() => driveConnected ? setShowDrivePanel(!showDrivePanel) : connectToDrive()}
+                  style={{ cursor: 'pointer', border: 'none', position: 'relative' }}
+                  title={driveConnected ? 'Click to manage Drive files' : 'Click to connect Google Drive'}
+                >
+                  <Icon name="hard-drive" size={12} style={{ marginRight: '4px' }} />
+                  {driveLoading ? 'Drive...' : driveConnected ? `Drive (${driveStatus})` : 'Connect Drive'}
+                </button>
               </div>
             </div>
           </header>
+
+          {/* Google Drive Panel */}
+          {showDrivePanel && driveConnected && (
+            <div style={{
+              position: 'fixed',
+              top: '70px',
+              right: '20px',
+              width: '360px',
+              maxHeight: '70vh',
+              background: 'var(--bg-elevated)',
+              border: '1px solid var(--border-accent)',
+              borderRadius: 'var(--radius-xl)',
+              boxShadow: 'var(--shadow-lg), 0 0 30px rgba(0,255,231,0.1)',
+              zIndex: 1000,
+              overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column'
+            }}>
+              <div style={{ padding: '1rem', borderBottom: '1px solid var(--border-subtle)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                  <Icon name="hard-drive" size={16} style={{ marginRight: '8px', color: 'var(--accent-primary)' }} />
+                  Google Drive
+                </span>
+                <button onClick={() => setShowDrivePanel(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
+                  <Icon name="x" size={18} />
+                </button>
+              </div>
+
+              {/* Save Actions */}
+              <div style={{ padding: '0.75rem 1rem', borderBottom: '1px solid var(--border-subtle)', display: 'flex', gap: '0.5rem' }}>
+                <button
+                  className="btn btn-primary"
+                  style={{ flex: 1, fontSize: '0.75rem' }}
+                  onClick={() => saveCurrentToDrive('avatar_control')}
+                  disabled={lipSyncData.length === 0 || driveLoading}
+                >
+                  <Icon name="upload" size={14} /> Save Avatar Data
+                </button>
+                <button
+                  className="btn btn-secondary"
+                  style={{ fontSize: '0.75rem' }}
+                  onClick={refreshDriveFiles}
+                  disabled={driveLoading}
+                >
+                  <Icon name="refresh-cw" size={14} />
+                </button>
+              </div>
+
+              {/* File List */}
+              <div style={{ flex: 1, overflowY: 'auto', padding: '0.5rem' }}>
+                {driveFiles.length === 0 ? (
+                  <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                    <Icon name="folder-open" size={32} style={{ opacity: 0.3, marginBottom: '8px' }} />
+                    <div style={{ fontSize: '0.8rem' }}>No files yet</div>
+                    <div style={{ fontSize: '0.7rem', marginTop: '4px' }}>Save avatar data to get started</div>
+                  </div>
+                ) : (
+                  driveFiles.map(file => (
+                    <div
+                      key={file.id}
+                      style={{
+                        padding: '0.75rem',
+                        margin: '0.25rem 0',
+                        background: 'var(--bg-surface)',
+                        borderRadius: 'var(--radius-md)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.75rem'
+                      }}
+                    >
+                      <Icon
+                        name={file.name.endsWith('.json') ? 'file-json' : 'file'}
+                        size={18}
+                        style={{ color: 'var(--accent-primary)', flexShrink: 0 }}
+                      />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: '0.8rem', color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {file.name}
+                        </div>
+                        <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>
+                          {new Date(file.modifiedTime).toLocaleDateString()} • {file.size ? (parseInt(file.size) / 1024).toFixed(1) + ' KB' : ''}
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: '4px' }}>
+                        <button
+                          onClick={() => loadFileFromDrive(file.id, file.name)}
+                          style={{ background: 'none', border: 'none', color: 'var(--accent-primary)', cursor: 'pointer', padding: '4px' }}
+                          title="Load this file"
+                        >
+                          <Icon name="download" size={14} />
+                        </button>
+                        <button
+                          onClick={() => deleteFileFromDrive(file.id)}
+                          style={{ background: 'none', border: 'none', color: 'var(--accent-danger)', cursor: 'pointer', padding: '4px' }}
+                          title="Delete this file"
+                        >
+                          <Icon name="trash-2" size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {/* Folder Info */}
+              <div style={{ padding: '0.5rem 1rem', borderTop: '1px solid var(--border-subtle)', fontSize: '0.65rem', color: 'var(--text-muted)' }}>
+                <Icon name="folder" size={12} style={{ marginRight: '4px' }} />
+                Saved to: Google Drive / OverlayStudio
+              </div>
+            </div>
+          )}
 
           <main className="main">
             <div className="main-grid">
