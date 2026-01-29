@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+build/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Test/temporary files
+*.log
+*.tmp
+test_*.png
+simulation_output/
+
+# Large binary files
+*.traineddata
+
+# Playwright MCP (local config)
+.playwright-mcp/
+
+# Avatar/video files (user content)
+avatar/
+source_video/
+
+# Claude local config
+.claude/

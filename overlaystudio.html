@@ -1,0 +1,2597 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Video Pattern Toolkit</title>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+  <script async src="https://docs.opencv.org/4.8.0/opencv.js" onload="window.cvReady = true;"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-darkest: #08080c;
+      --bg-dark: #0c0c12;
+      --bg-base: #101018;
+      --bg-elevated: #16161f;
+      --bg-surface: #1c1c28;
+      --bg-hover: #242432;
+      --accent-primary: #00FFE7;
+      --accent-secondary: #FF00FF;
+      --accent-warning: #FFB800;
+      --accent-success: #00FF88;
+      --accent-danger: #FF4466;
+      --text-primary: #F0F2F5;
+      --text-secondary: #8B92A0;
+      --text-muted: #5A6070;
+      --border-subtle: rgba(255,255,255,0.06);
+      --border-default: rgba(255,255,255,0.1);
+      --border-accent: rgba(0,255,231,0.3);
+      --shadow-sm: 0 1px 2px rgba(0,0,0,0.4);
+      --shadow-md: 0 4px 12px rgba(0,0,0,0.5);
+      --shadow-lg: 0 8px 24px rgba(0,0,0,0.6);
+      --shadow-glow: 0 0 20px rgba(0,255,231,0.15);
+      --radius-sm: 0.375rem;
+      --radius-md: 0.5rem;
+      --radius-lg: 0.75rem;
+      --radius-xl: 1rem;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg-darkest);
+      color: var(--text-primary);
+      min-height: 100vh;
+      line-height: 1.5;
+    }
+
+    .app { display: flex; flex-direction: column; min-height: 100vh; }
+    .header { padding: 1rem 1.5rem; border-bottom: 1px solid var(--border-subtle); background: var(--bg-dark); }
+    .header-content { max-width: 1600px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem; }
+    .logo { display: flex; align-items: center; gap: 0.75rem; }
+    .logo-icon { width: 36px; height: 36px; background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary)); border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center; }
+    .logo-text { font-size: 1.125rem; font-weight: 700; color: var(--text-primary); }
+
+    .mode-tabs { display: flex; gap: 0.25rem; background: var(--bg-surface); padding: 0.25rem; border-radius: var(--radius-lg); }
+    .mode-tab { padding: 0.5rem 1rem; font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); background: transparent; border: none; border-radius: var(--radius-md); cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+    .mode-tab:hover { color: var(--text-primary); background: var(--bg-hover); }
+    .mode-tab.active { color: var(--bg-darkest); background: var(--accent-primary); box-shadow: 0 0 12px rgba(0,255,231,0.4); }
+
+    .status-badges { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+
+    .main { flex: 1; padding: 1.5rem; max-width: 1600px; margin: 0 auto; width: 100%; }
+    .main-grid { display: grid; grid-template-columns: 1fr 400px; gap: 1.5rem; }
+    @media (max-width: 1200px) { .main-grid { grid-template-columns: 1fr; } }
+
+    .card { background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-xl); }
+    .card-header { padding: 1rem 1.25rem; border-bottom: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: space-between; }
+    .card-title { font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary); }
+    .card-body { padding: 1.25rem; }
+
+    .video-wrapper { position: relative; background: var(--bg-dark); border-radius: var(--radius-lg); overflow: hidden; }
+    .video-aspect { position: relative; width: 100%; padding-top: 56.25%; background: var(--bg-darkest); }
+    .video-aspect > * { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+    video { object-fit: contain; background: #000; }
+
+    .upload-zone { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 3rem; border: 2px dashed var(--border-default); border-radius: var(--radius-lg); cursor: pointer; transition: all 0.2s; }
+    .upload-zone:hover { border-color: var(--accent-primary); background: rgba(0,255,231,0.02); }
+    .upload-icon { width: 48px; height: 48px; margin-bottom: 1rem; color: var(--accent-primary); opacity: 0.6; }
+    .upload-text { font-size: 0.9rem; color: var(--text-secondary); text-align: center; }
+    .upload-text strong { color: var(--accent-primary); }
+
+    .tool-section { background: var(--bg-surface); border-radius: var(--radius-lg); padding: 1rem; margin-bottom: 1rem; }
+    .tool-section:last-child { margin-bottom: 0; }
+    .tool-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem; }
+    .tool-title { font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary); display: flex; align-items: center; gap: 0.5rem; }
+
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; padding: 0.5rem 1rem; border-radius: var(--radius-md); font-size: 0.8125rem; font-weight: 600; font-family: inherit; cursor: pointer; transition: all 0.15s; border: none; white-space: nowrap; }
+    .btn-primary { background: var(--accent-primary); color: var(--bg-darkest); }
+    .btn-primary:hover { box-shadow: 0 0 16px rgba(0,255,231,0.4); }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-secondary { background: var(--bg-hover); border: 1px solid var(--border-default); color: var(--text-primary); }
+    .btn-secondary:hover { border-color: var(--accent-primary); color: var(--accent-primary); }
+    .btn-secondary.active { background: rgba(0,255,231,0.1); border-color: var(--accent-primary); color: var(--accent-primary); }
+    .btn-danger { background: rgba(255,68,102,0.1); border: 1px solid rgba(255,68,102,0.3); color: var(--accent-danger); }
+    .btn-danger:hover { background: rgba(255,68,102,0.2); }
+    .btn-ghost { background: transparent; color: var(--text-muted); padding: 0.375rem 0.5rem; }
+    .btn-ghost:hover { color: var(--accent-primary); }
+    .btn-sm { padding: 0.375rem 0.75rem; font-size: 0.75rem; }
+    .btn-block { width: 100%; }
+
+    .form-group { display: flex; flex-direction: column; gap: 0.375rem; }
+    .form-label { font-size: 0.6875rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-muted); }
+
+    .input { background: var(--bg-dark); border: 1px solid var(--border-default); border-radius: var(--radius-sm); padding: 0.5rem 0.75rem; font-size: 0.8125rem; font-family: 'JetBrains Mono', monospace; color: var(--text-primary); outline: none; transition: border-color 0.15s; }
+    .input:focus { border-color: var(--accent-primary); }
+    .input-sm { padding: 0.375rem 0.5rem; font-size: 0.75rem; }
+
+    textarea.input { min-height: 100px; resize: vertical; font-family: inherit; line-height: 1.6; }
+
+    input[type="range"] { -webkit-appearance: none; width: 100%; height: 4px; background: var(--bg-dark); border-radius: 2px; outline: none; }
+    input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; background: var(--accent-primary); border-radius: 50%; cursor: pointer; box-shadow: 0 0 6px rgba(0,255,231,0.5); }
+
+    select { background: var(--bg-dark); border: 1px solid var(--border-default); border-radius: var(--radius-sm); padding: 0.5rem 0.75rem; font-size: 0.8125rem; color: var(--text-primary); outline: none; cursor: pointer; }
+    select:focus { border-color: var(--accent-primary); }
+
+    .toggle { display: flex; align-items: center; gap: 0.5rem; cursor: pointer; }
+    .toggle-switch { position: relative; width: 36px; height: 20px; background: var(--bg-dark); border: 1px solid var(--border-default); border-radius: 10px; transition: all 0.2s; }
+    .toggle-switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; background: var(--text-muted); border-radius: 50%; transition: all 0.2s; }
+    .toggle.on .toggle-switch { background: rgba(0,255,231,0.2); border-color: var(--accent-primary); }
+    .toggle.on .toggle-switch::after { left: calc(100% - 16px); background: var(--accent-primary); box-shadow: 0 0 6px rgba(0,255,231,0.5); }
+    .toggle-label { font-size: 0.75rem; color: var(--text-secondary); }
+    .toggle.on .toggle-label { color: var(--accent-primary); }
+
+    .badge { display: inline-flex; align-items: center; padding: 0.125rem 0.5rem; font-size: 0.625rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; border-radius: var(--radius-sm); }
+    .badge-success { background: rgba(0,255,136,0.15); color: var(--accent-success); }
+    .badge-warning { background: rgba(255,184,0,0.15); color: var(--accent-warning); }
+    .badge-info { background: rgba(0,255,231,0.15); color: var(--accent-primary); }
+    .badge-danger { background: rgba(255,68,102,0.15); color: var(--accent-danger); }
+
+    .progress { height: 4px; background: var(--bg-dark); border-radius: 2px; overflow: hidden; }
+    .progress-bar { height: 100%; background: linear-gradient(90deg, var(--accent-primary), var(--accent-secondary)); border-radius: 2px; transition: width 0.3s; }
+
+    .frame-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 0.75rem; max-height: 400px; overflow-y: auto; }
+    .frame-card { position: relative; aspect-ratio: 16/9; border-radius: var(--radius-md); overflow: hidden; cursor: pointer; border: 2px solid var(--border-subtle); transition: all 0.15s; background: var(--bg-dark); }
+    .frame-card:hover { border-color: var(--accent-primary); }
+    .frame-card.selected { border-color: var(--accent-primary); box-shadow: 0 0 12px rgba(0,255,231,0.3); }
+    .frame-card img { width: 100%; height: 100%; object-fit: cover; }
+    .frame-card-info { position: absolute; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,0.8); padding: 4px 6px; font-size: 0.625rem; font-family: 'JetBrains Mono', monospace; color: var(--accent-primary); }
+    .frame-card .checkmark { position: absolute; top: 4px; right: 4px; background: var(--accent-primary); color: var(--bg-darkest); border-radius: 50%; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: bold; }
+
+    .pattern-gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 1rem; max-height: 500px; overflow-y: auto; }
+    .pattern-card { background: var(--bg-surface); border-radius: var(--radius-lg); overflow: hidden; border: 1px solid var(--border-subtle); transition: all 0.15s; }
+    .pattern-card:hover { border-color: var(--accent-primary); transform: translateY(-2px); }
+    .pattern-card-image { aspect-ratio: 4/3; overflow: hidden; }
+    .pattern-card-image img { width: 100%; height: 100%; object-fit: cover; }
+    .pattern-card-body { padding: 0.75rem; }
+    .pattern-card-title { font-size: 0.75rem; font-weight: 600; color: var(--text-primary); margin-bottom: 0.25rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .pattern-card-meta { font-size: 0.625rem; color: var(--text-muted); }
+    .pattern-tags { display: flex; flex-wrap: wrap; gap: 0.25rem; margin-top: 0.5rem; }
+    .pattern-tag { font-size: 0.5625rem; padding: 2px 6px; background: var(--bg-hover); border-radius: var(--radius-sm); color: var(--text-secondary); }
+
+    .phoneme-graph { height: 100px; background: var(--bg-dark); border-radius: var(--radius-md); position: relative; overflow: hidden; }
+    .phoneme-line { stroke: var(--accent-primary); stroke-width: 2; fill: none; }
+    .phoneme-area { fill: rgba(0,255,231,0.1); }
+
+    .word-timeline { position: relative; height: 40px; background: var(--bg-surface); border-radius: var(--radius-md); overflow: hidden; margin-top: 0.5rem; }
+    .word-marker { position: absolute; top: 4px; bottom: 4px; background: rgba(255,0,255,0.2); border: 1px solid var(--accent-secondary); border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; font-size: 0.5625rem; color: var(--text-primary); cursor: pointer; transition: all 0.15s; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 4px; }
+    .word-marker:hover { background: rgba(255,0,255,0.4); z-index: 10; }
+    .word-marker.active { background: rgba(0,255,231,0.3); border-color: var(--accent-primary); }
+    .word-marker.recording { background: rgba(255,68,102,0.3); border-color: var(--accent-danger); animation: pulse 1s infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+    .script-panel { background: var(--bg-dark); border-radius: var(--radius-lg); padding: 1rem; }
+    .script-words { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.75rem; }
+    .script-word { padding: 0.375rem 0.625rem; background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); font-size: 0.75rem; cursor: pointer; transition: all 0.15s; }
+    .script-word:hover { border-color: var(--accent-primary); }
+    .script-word.timed { background: rgba(0,255,231,0.1); border-color: var(--accent-primary); color: var(--accent-primary); }
+    .script-word.current { background: var(--accent-secondary); color: var(--bg-darkest); border-color: var(--accent-secondary); }
+    .script-word .phonemes { display: block; font-size: 0.5625rem; color: var(--text-muted); margin-top: 2px; font-family: 'JetBrains Mono', monospace; }
+    .script-word.timed .phonemes { color: var(--accent-primary); opacity: 0.7; }
+
+    .recognition-status { display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.75rem; background: var(--bg-surface); border-radius: var(--radius-md); margin-bottom: 0.75rem; }
+    .recognition-status.listening { background: rgba(255,68,102,0.1); border: 1px solid var(--accent-danger); }
+    .recognition-status .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-muted); }
+    .recognition-status.listening .dot { background: var(--accent-danger); animation: pulse 1s infinite; }
+
+    .alignment-score { display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; background: var(--bg-surface); border-radius: var(--radius-md); }
+    .alignment-score-value { font-size: 1.5rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
+    .alignment-score-label { font-size: 0.6875rem; color: var(--text-muted); }
+    .alignment-score.good .alignment-score-value { color: var(--accent-success); }
+    .alignment-score.medium .alignment-score-value { color: var(--accent-warning); }
+    .alignment-score.poor .alignment-score-value { color: var(--accent-danger); }
+
+    .multi-video-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    .video-slot { background: var(--bg-surface); border-radius: var(--radius-lg); padding: 0.75rem; }
+    .video-slot-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
+    .video-slot-title { font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); }
+    .diff-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; mix-blend-mode: difference; opacity: 0.5; }
+
+    .color-palette { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+    .color-swatch { width: 32px; height: 32px; border-radius: var(--radius-sm); cursor: pointer; transition: transform 0.15s; border: 2px solid transparent; }
+    .color-swatch:hover { transform: scale(1.1); }
+
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg-dark); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb { background: var(--bg-hover); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+    .file-info { display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem 1rem; background: var(--bg-surface); border-radius: var(--radius-md); margin-bottom: 1rem; }
+    .file-icon { width: 32px; height: 32px; background: var(--bg-hover); border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; }
+    .file-details { flex: 1; min-width: 0; }
+    .file-name { font-size: 0.8125rem; font-weight: 500; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .file-size { font-size: 0.6875rem; color: var(--text-muted); }
+
+    .search-box { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
+    .search-input { flex: 1; background: var(--bg-dark); border: 1px solid var(--border-default); border-radius: var(--radius-md); padding: 0.5rem 1rem; font-size: 0.8125rem; color: var(--text-primary); outline: none; }
+    .search-input:focus { border-color: var(--accent-primary); }
+    .search-input::placeholder { color: var(--text-muted); }
+
+    .category-filter { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1rem; }
+    .category-btn { padding: 0.375rem 0.75rem; font-size: 0.6875rem; font-weight: 600; background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-secondary); cursor: pointer; transition: all 0.15s; }
+    .category-btn:hover { border-color: var(--accent-primary); color: var(--accent-primary); }
+    .category-btn.active { background: rgba(0,255,231,0.1); border-color: var(--accent-primary); color: var(--accent-primary); }
+
+    .analysis-summary { background: var(--bg-dark); border-radius: var(--radius-md); padding: 0.75rem; margin-top: 0.75rem; }
+    .analysis-summary-row { display: flex; justify-content: space-between; font-size: 0.6875rem; padding: 0.25rem 0; border-bottom: 1px solid var(--border-subtle); }
+    .analysis-summary-row:last-child { border-bottom: none; }
+    .analysis-summary-label { color: var(--text-muted); }
+    .analysis-summary-value { color: var(--accent-primary); font-family: 'JetBrains Mono', monospace; }
+
+    .subtitle-list { max-height: 200px; overflow-y: auto; }
+    .subtitle-item { display: flex; gap: 0.75rem; padding: 0.5rem; background: var(--bg-dark); border-radius: var(--radius-sm); margin-bottom: 0.5rem; align-items: flex-start; }
+    .subtitle-item:last-child { margin-bottom: 0; }
+    .subtitle-time { font-size: 0.625rem; font-family: 'JetBrains Mono', monospace; color: var(--accent-primary); white-space: nowrap; }
+    .subtitle-text { font-size: 0.75rem; color: var(--text-primary); flex: 1; }
+
+    .flex { display: flex; }
+    .flex-col { flex-direction: column; }
+    .items-center { align-items: center; }
+    .justify-between { justify-content: space-between; }
+    .gap-1 { gap: 0.25rem; }
+    .gap-2 { gap: 0.5rem; }
+    .gap-3 { gap: 0.75rem; }
+    .gap-4 { gap: 1rem; }
+    .mt-2 { margin-top: 0.5rem; }
+    .mt-3 { margin-top: 0.75rem; }
+    .mb-2 { margin-bottom: 0.5rem; }
+    .mb-3 { margin-bottom: 0.75rem; }
+    .text-xs { font-size: 0.75rem; }
+    .text-sm { font-size: 0.8125rem; }
+    .text-muted { color: var(--text-muted); }
+    .text-accent { color: var(--accent-primary); }
+    .text-success { color: var(--accent-success); }
+    .text-danger { color: var(--accent-danger); }
+    .font-mono { font-family: 'JetBrains Mono', monospace; }
+    .w-full { width: 100%; }
+    .hidden { display: none; }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner { width: 16px; height: 16px; border: 2px solid var(--bg-hover); border-top-color: var(--accent-primary); border-radius: 50%; animation: spin 0.8s linear infinite; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useRef, useEffect, useCallback } = React;
+
+    // Icons
+    const Icon = ({ name, size = 16 }) => {
+      const icons = {
+        upload: <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/>,
+        video: <><rect x="2" y="4" width="20" height="16" rx="2"/><polygon points="10 8 16 12 10 16"/></>,
+        grid: <><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18M15 3v18"/></>,
+        download: <><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></>,
+        x: <><path d="M18 6 6 18"/><path d="m6 6 12 12"/></>,
+        check: <polyline points="20 6 9 17 4 12"/>,
+        file: <><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></>,
+        trash: <><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></>,
+        scissors: <><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></>,
+        play: <polygon points="5 3 19 12 5 21 5 3"/>,
+        pause: <><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></>,
+        user: <><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></>,
+        image: <><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></>,
+        layers: <><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></>,
+        sync: <><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></>,
+        mic: <><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></>,
+        micOff: <><line x1="2" y1="2" x2="22" y2="22"/><path d="M18.89 13.23A7.12 7.12 0 0 0 19 12v-2"/><path d="M5 10v2a7 7 0 0 0 12 5"/><path d="M15 9.34V5a3 3 0 0 0-5.68-1.33"/><path d="M9 9v3a3 3 0 0 0 5.12 2.12"/><line x1="12" y1="19" x2="12" y2="22"/></>,
+        type: <><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></>,
+        fileText: <><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></>,
+        search: <><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></>,
+        clock: <><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></>,
+        scan: <><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><line x1="8" y1="12" x2="16" y2="12"/></>,
+        alignLeft: <><line x1="21" y1="6" x2="3" y2="6"/><line x1="15" y1="12" x2="3" y2="12"/><line x1="17" y1="18" x2="3" y2="18"/></>,
+        zap: <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>,
+      };
+      return (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          {icons[name]}
+        </svg>
+      );
+    };
+
+    // ============================================
+    // PHONEME DICTIONARY (CMU-style simplified)
+    // ============================================
+    const PHONEME_MAP = {
+      // Common words with phoneme sequences
+      'a': ['AH'], 'the': ['DH', 'AH'], 'and': ['AE', 'N', 'D'], 'to': ['T', 'UW'],
+      'of': ['AH', 'V'], 'in': ['IH', 'N'], 'is': ['IH', 'Z'], 'it': ['IH', 'T'],
+      'you': ['Y', 'UW'], 'that': ['DH', 'AE', 'T'], 'was': ['W', 'AH', 'Z'],
+      'for': ['F', 'AO', 'R'], 'on': ['AA', 'N'], 'are': ['AA', 'R'], 'with': ['W', 'IH', 'TH'],
+      'as': ['AE', 'Z'], 'at': ['AE', 'T'], 'be': ['B', 'IY'], 'this': ['DH', 'IH', 'S'],
+      'have': ['HH', 'AE', 'V'], 'from': ['F', 'R', 'AH', 'M'], 'or': ['AO', 'R'],
+      'by': ['B', 'AY'], 'not': ['N', 'AA', 'T'], 'but': ['B', 'AH', 'T'],
+      'what': ['W', 'AH', 'T'], 'all': ['AO', 'L'], 'were': ['W', 'ER'],
+      'we': ['W', 'IY'], 'when': ['W', 'EH', 'N'], 'your': ['Y', 'AO', 'R'],
+      'can': ['K', 'AE', 'N'], 'there': ['DH', 'EH', 'R'], 'use': ['Y', 'UW', 'Z'],
+      'an': ['AE', 'N'], 'each': ['IY', 'CH'], 'which': ['W', 'IH', 'CH'],
+      'she': ['SH', 'IY'], 'do': ['D', 'UW'], 'how': ['HH', 'AW'], 'their': ['DH', 'EH', 'R'],
+      'if': ['IH', 'F'], 'will': ['W', 'IH', 'L'], 'up': ['AH', 'P'], 'other': ['AH', 'DH', 'ER'],
+      'about': ['AH', 'B', 'AW', 'T'], 'out': ['AW', 'T'], 'many': ['M', 'EH', 'N', 'IY'],
+      'then': ['DH', 'EH', 'N'], 'them': ['DH', 'EH', 'M'], 'these': ['DH', 'IY', 'Z'],
+      'so': ['S', 'OW'], 'some': ['S', 'AH', 'M'], 'her': ['HH', 'ER'], 'would': ['W', 'UH', 'D'],
+      'make': ['M', 'EY', 'K'], 'like': ['L', 'AY', 'K'], 'him': ['HH', 'IH', 'M'],
+      'into': ['IH', 'N', 'T', 'UW'], 'time': ['T', 'AY', 'M'], 'has': ['HH', 'AE', 'Z'],
+      'look': ['L', 'UH', 'K'], 'two': ['T', 'UW'], 'more': ['M', 'AO', 'R'],
+      'go': ['G', 'OW'], 'see': ['S', 'IY'], 'no': ['N', 'OW'], 'way': ['W', 'EY'],
+      'could': ['K', 'UH', 'D'], 'my': ['M', 'AY'], 'than': ['DH', 'AE', 'N'],
+      'first': ['F', 'ER', 'S', 'T'], 'been': ['B', 'IH', 'N'], 'call': ['K', 'AO', 'L'],
+      'who': ['HH', 'UW'], 'its': ['IH', 'T', 'S'], 'now': ['N', 'AW'], 'find': ['F', 'AY', 'N', 'D'],
+      'long': ['L', 'AO', 'NG'], 'down': ['D', 'AW', 'N'], 'day': ['D', 'EY'], 'did': ['D', 'IH', 'D'],
+      'get': ['G', 'EH', 'T'], 'come': ['K', 'AH', 'M'], 'made': ['M', 'EY', 'D'],
+      'may': ['M', 'EY'], 'part': ['P', 'AA', 'R', 'T'], 'hello': ['HH', 'AH', 'L', 'OW'],
+      'hi': ['HH', 'AY'], 'yes': ['Y', 'EH', 'S'], 'no': ['N', 'OW'], 'okay': ['OW', 'K', 'EY'],
+      'thanks': ['TH', 'AE', 'NG', 'K', 'S'], 'please': ['P', 'L', 'IY', 'Z'],
+      'sorry': ['S', 'AA', 'R', 'IY'], 'love': ['L', 'AH', 'V'], 'good': ['G', 'UH', 'D'],
+      'great': ['G', 'R', 'EY', 'T'], 'nice': ['N', 'AY', 'S'], 'well': ['W', 'EH', 'L'],
+      'really': ['R', 'IY', 'L', 'IY'], 'just': ['JH', 'AH', 'S', 'T'], 'know': ['N', 'OW'],
+      'think': ['TH', 'IH', 'NG', 'K'], 'want': ['W', 'AA', 'N', 'T'], 'need': ['N', 'IY', 'D'],
+      'feel': ['F', 'IY', 'L'], 'take': ['T', 'EY', 'K'], 'say': ['S', 'EY'],
+      'tell': ['T', 'EH', 'L'], 'ask': ['AE', 'S', 'K'], 'work': ['W', 'ER', 'K'],
+      'try': ['T', 'R', 'AY'], 'give': ['G', 'IH', 'V'], 'new': ['N', 'UW'],
+      'old': ['OW', 'L', 'D'], 'big': ['B', 'IH', 'G'], 'small': ['S', 'M', 'AO', 'L'],
+      'right': ['R', 'AY', 'T'], 'left': ['L', 'EH', 'F', 'T'], 'here': ['HH', 'IY', 'R'],
+      'where': ['W', 'EH', 'R'], 'why': ['W', 'AY'], 'because': ['B', 'IH', 'K', 'AO', 'Z'],
+      'very': ['V', 'EH', 'R', 'IY'], 'also': ['AO', 'L', 'S', 'OW'],
+      'back': ['B', 'AE', 'K'], 'only': ['OW', 'N', 'L', 'IY'], 'over': ['OW', 'V', 'ER'],
+      'such': ['S', 'AH', 'CH'], 'after': ['AE', 'F', 'T', 'ER'], 'most': ['M', 'OW', 'S', 'T'],
+      'also': ['AO', 'L', 'S', 'OW'], 'us': ['AH', 'S'], 'around': ['ER', 'AW', 'N', 'D'],
+      'another': ['AH', 'N', 'AH', 'DH', 'ER'], 'same': ['S', 'EY', 'M'], 'different': ['D', 'IH', 'F', 'R', 'AH', 'N', 'T'],
+      'help': ['HH', 'EH', 'L', 'P'], 'change': ['CH', 'EY', 'N', 'JH'], 'again': ['AH', 'G', 'EH', 'N'],
+      'off': ['AO', 'F'], 'always': ['AO', 'L', 'W', 'EY', 'Z'], 'those': ['DH', 'OW', 'Z'],
+      'both': ['B', 'OW', 'TH'], 'between': ['B', 'IH', 'T', 'W', 'IY', 'N'], 'being': ['B', 'IY', 'IH', 'NG'],
+      'under': ['AH', 'N', 'D', 'ER'], 'never': ['N', 'EH', 'V', 'ER'], 'before': ['B', 'IH', 'F', 'AO', 'R'],
+      'through': ['TH', 'R', 'UW'], 'world': ['W', 'ER', 'L', 'D'], 'still': ['S', 'T', 'IH', 'L'],
+      'last': ['L', 'AE', 'S', 'T'], 'own': ['OW', 'N'], 'might': ['M', 'AY', 'T'],
+      'never': ['N', 'EH', 'V', 'ER'], 'too': ['T', 'UW'], 'any': ['EH', 'N', 'IY'],
+      'same': ['S', 'EY', 'M'], 'sure': ['SH', 'UH', 'R'], 'thing': ['TH', 'IH', 'NG'],
+      'point': ['P', 'OY', 'N', 'T'], 'something': ['S', 'AH', 'M', 'TH', 'IH', 'NG'],
+      'nothing': ['N', 'AH', 'TH', 'IH', 'NG'], 'everything': ['EH', 'V', 'R', 'IY', 'TH', 'IH', 'NG'],
+    };
+
+    // Phoneme to mouth shape mapping
+    const PHONEME_TO_MOUTH = {
+      'AA': 'AH', 'AE': 'AH', 'AH': 'AH', 'AO': 'OH', 'AW': 'AH',
+      'AY': 'AH', 'B': 'MM', 'CH': 'EE', 'D': 'neutral', 'DH': 'neutral',
+      'EH': 'EE', 'ER': 'neutral', 'EY': 'EE', 'F': 'neutral', 'G': 'neutral',
+      'HH': 'neutral', 'IH': 'EE', 'IY': 'EE', 'JH': 'EE', 'K': 'neutral',
+      'L': 'neutral', 'M': 'MM', 'N': 'neutral', 'NG': 'neutral', 'OW': 'OH',
+      'OY': 'OH', 'P': 'MM', 'R': 'neutral', 'S': 'EE', 'SH': 'EE',
+      'T': 'neutral', 'TH': 'neutral', 'UH': 'OH', 'UW': 'OH', 'V': 'neutral',
+      'W': 'OH', 'Y': 'EE', 'Z': 'EE', 'ZH': 'EE'
+    };
+
+    // Text to phoneme conversion with fallback rules
+    const textToPhonemes = (word) => {
+      const lower = word.toLowerCase().replace(/[^a-z]/g, '');
+      if (PHONEME_MAP[lower]) {
+        return PHONEME_MAP[lower];
+      }
+      // Fallback: simple letter-based approximation
+      const letterPhonemes = {
+        'a': 'AH', 'b': 'B', 'c': 'K', 'd': 'D', 'e': 'EH', 'f': 'F',
+        'g': 'G', 'h': 'HH', 'i': 'IH', 'j': 'JH', 'k': 'K', 'l': 'L',
+        'm': 'M', 'n': 'N', 'o': 'OW', 'p': 'P', 'q': 'K', 'r': 'R',
+        's': 'S', 't': 'T', 'u': 'AH', 'v': 'V', 'w': 'W', 'x': 'K',
+        'y': 'Y', 'z': 'Z'
+      };
+      return lower.split('').map(c => letterPhonemes[c] || 'AH').filter(Boolean);
+    };
+
+    // Get simplified mouth shape from phoneme
+    const phonemeToMouth = (phoneme) => {
+      return PHONEME_TO_MOUTH[phoneme] || 'neutral';
+    };
+
+    // ============================================
+    // SRT/VTT PARSER
+    // ============================================
+    const parseSRT = (text) => {
+      const subtitles = [];
+      const blocks = text.trim().split(/\n\n+/);
+
+      for (const block of blocks) {
+        const lines = block.split('\n');
+        if (lines.length >= 2) {
+          // Find time line (contains -->)
+          const timeLineIdx = lines.findIndex(l => l.includes('-->'));
+          if (timeLineIdx >= 0) {
+            const timeLine = lines[timeLineIdx];
+            const [startStr, endStr] = timeLine.split('-->').map(s => s.trim());
+            const textLines = lines.slice(timeLineIdx + 1).join(' ');
+
+            const parseTime = (str) => {
+              const parts = str.replace(',', '.').split(':');
+              if (parts.length === 3) {
+                return parseFloat(parts[0]) * 3600 + parseFloat(parts[1]) * 60 + parseFloat(parts[2]);
+              }
+              return 0;
+            };
+
+            subtitles.push({
+              start: parseTime(startStr),
+              end: parseTime(endStr),
+              text: textLines.replace(/<[^>]*>/g, '').trim()
+            });
+          }
+        }
+      }
+      return subtitles;
+    };
+
+    const parseVTT = (text) => {
+      // Remove WEBVTT header
+      const content = text.replace(/^WEBVTT.*\n/, '').trim();
+      return parseSRT(content);
+    };
+
+    const generateSRT = (words) => {
+      const timedWords = words.filter(w => w.startTime !== undefined && w.endTime !== undefined);
+      if (timedWords.length === 0) return '';
+
+      let srt = '';
+      let idx = 1;
+
+      // Group words into subtitle blocks (max 10 words per block)
+      for (let i = 0; i < timedWords.length; i += 10) {
+        const group = timedWords.slice(i, i + 10);
+        const start = group[0].startTime;
+        const end = group[group.length - 1].endTime;
+        const text = group.map(w => w.word).join(' ');
+
+        const formatTime = (s) => {
+          const h = Math.floor(s / 3600);
+          const m = Math.floor((s % 3600) / 60);
+          const sec = Math.floor(s % 60);
+          const ms = Math.floor((s % 1) * 1000);
+          return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')},${ms.toString().padStart(3, '0')}`;
+        };
+
+        srt += `${idx}\n${formatTime(start)} --> ${formatTime(end)}\n${text}\n\n`;
+        idx++;
+      }
+
+      return srt;
+    };
+
+    // ============================================
+    // IndexedDB for Pattern Library
+    // ============================================
+    const DB_NAME = 'VideoPatternToolkit';
+    const DB_VERSION = 1;
+    const STORE_NAME = 'patterns';
+
+    const openDB = () => {
+      return new Promise((resolve, reject) => {
+        const request = indexedDB.open(DB_NAME, DB_VERSION);
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => resolve(request.result);
+        request.onupgradeneeded = (e) => {
+          const db = e.target.result;
+          if (!db.objectStoreNames.contains(STORE_NAME)) {
+            const store = db.createObjectStore(STORE_NAME, { keyPath: 'id' });
+            store.createIndex('category', 'category', { unique: false });
+          }
+        };
+      });
+    };
+
+    const savePattern = async (pattern) => {
+      const db = await openDB();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE_NAME, 'readwrite');
+        tx.objectStore(STORE_NAME).put(pattern);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
+    };
+
+    const loadPatterns = async () => {
+      const db = await openDB();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE_NAME, 'readonly');
+        const request = tx.objectStore(STORE_NAME).getAll();
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+    };
+
+    const deletePattern = async (id) => {
+      const db = await openDB();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE_NAME, 'readwrite');
+        tx.objectStore(STORE_NAME).delete(id);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
+    };
+
+    // ============================================
+    // UTILITY FUNCTIONS
+    // ============================================
+    const estimatePhoneme = (mouthOpenness, mouthWidth) => {
+      if (mouthOpenness < 0.1) return { phoneme: 'MM', confidence: 0.9 };
+      if (mouthOpenness > 0.6) {
+        if (mouthWidth > 0.5) return { phoneme: 'AH', confidence: 0.8 };
+        return { phoneme: 'OH', confidence: 0.7 };
+      }
+      if (mouthWidth > 0.6 && mouthOpenness < 0.3) return { phoneme: 'EE', confidence: 0.8 };
+      if (mouthOpenness >= 0.1 && mouthOpenness <= 0.3) return { phoneme: 'neutral', confidence: 0.85 };
+      return { phoneme: 'neutral', confidence: 0.5 };
+    };
+
+    // ============================================
+    // ENHANCED AVATAR CONTROL UTILITIES
+    // ============================================
+
+    // Calculate eye aspect ratio (EAR) for blink detection
+    const calculateEyeOpenness = (eyePoints) => {
+      // Eye points: 6 points per eye
+      // Vertical: points 1-5 and 2-4
+      // Horizontal: points 0-3
+      const vertical1 = Math.abs(eyePoints[1].y - eyePoints[5].y);
+      const vertical2 = Math.abs(eyePoints[2].y - eyePoints[4].y);
+      const horizontal = Math.abs(eyePoints[0].x - eyePoints[3].x);
+
+      // EAR formula: (v1 + v2) / (2 * h)
+      const ear = (vertical1 + vertical2) / (2 * horizontal + 0.001);
+      // Normalize to 0-1 range (typical EAR is 0.2-0.4)
+      return Math.min(1, Math.max(0, (ear - 0.1) / 0.3));
+    };
+
+    // Calculate eyebrow height relative to eye
+    const calculateBrowHeight = (browPoints, eyePoints, faceHeight) => {
+      const browCenterY = (browPoints[2].y);
+      const eyeCenterY = (eyePoints[1].y + eyePoints[5].y) / 2;
+      const distance = eyeCenterY - browCenterY;
+      // Normalize: higher value = raised brow
+      return Math.min(1, Math.max(0, distance / (faceHeight * 0.15)));
+    };
+
+    // Estimate head pose from face landmarks
+    const estimateHeadPose = (landmarks, faceBox, videoWidth, videoHeight) => {
+      const nose = landmarks.getNose();
+      const jaw = landmarks.getJawOutline();
+
+      // Nose tip position relative to face center
+      const noseTip = nose[6]; // tip of nose
+      const faceCenterX = faceBox.x + faceBox.width / 2;
+      const faceCenterY = faceBox.y + faceBox.height / 2;
+
+      // Yaw: horizontal rotation (looking left/right)
+      const yawOffset = (noseTip.x - faceCenterX) / faceBox.width;
+      const yaw = Math.max(-1, Math.min(1, yawOffset * 3));
+
+      // Pitch: vertical rotation (looking up/down)
+      const pitchOffset = (noseTip.y - faceCenterY) / faceBox.height;
+      const pitch = Math.max(-1, Math.min(1, pitchOffset * 2));
+
+      // Roll: head tilt (from jaw line angle)
+      const jawLeft = jaw[0];
+      const jawRight = jaw[16];
+      const rollAngle = Math.atan2(jawRight.y - jawLeft.y, jawRight.x - jawLeft.x);
+      const roll = Math.max(-1, Math.min(1, rollAngle * 2));
+
+      return { yaw, pitch, roll };
+    };
+
+    // Calculate lip corner positions (for asymmetric expressions)
+    const calculateLipCorners = (mouthPoints, faceBox) => {
+      const leftCorner = mouthPoints[0];
+      const rightCorner = mouthPoints[6];
+      const mouthCenter = (mouthPoints[14].y + mouthPoints[18].y) / 2;
+
+      // Vertical offset from center (positive = corner up = smile)
+      const leftOffset = (mouthCenter - leftCorner.y) / faceBox.height;
+      const rightOffset = (mouthCenter - rightCorner.y) / faceBox.height;
+
+      return {
+        left: Math.max(-1, Math.min(1, leftOffset * 10)),
+        right: Math.max(-1, Math.min(1, rightOffset * 10))
+      };
+    };
+
+    // Generate natural blink pattern
+    const generateBlinkPattern = (duration, fps) => {
+      const blinks = [];
+      let time = Math.random() * 2 + 1; // First blink 1-3 seconds in
+
+      while (time < duration) {
+        blinks.push({
+          time: time,
+          duration: 0.1 + Math.random() * 0.1 // 100-200ms blink
+        });
+        // Next blink in 2-6 seconds (natural interval)
+        time += 2 + Math.random() * 4;
+      }
+
+      return blinks;
+    };
+
+    // Detect breath pauses from word timing gaps
+    const detectBreathPauses = (words) => {
+      const pauses = [];
+      for (let i = 1; i < words.length; i++) {
+        const prevEnd = words[i-1].endTime;
+        const currStart = words[i].startTime;
+        if (prevEnd !== undefined && currStart !== undefined) {
+          const gap = currStart - prevEnd;
+          if (gap > 0.3) { // Gap > 300ms = breath pause
+            pauses.push({
+              time: prevEnd,
+              duration: gap,
+              type: gap > 0.8 ? 'deep' : 'shallow'
+            });
+          }
+        }
+      }
+      return pauses;
+    };
+
+    // Simple emotion estimation from phoneme patterns
+    const estimateEmotion = (recentPhonemes, mouthWidth, lipCorners) => {
+      const smileScore = (lipCorners.left + lipCorners.right) / 2;
+      const openMouths = recentPhonemes.filter(p => p === 'AH' || p === 'OH').length;
+
+      if (smileScore > 0.3 && mouthWidth > 0.25) return { emotion: 'happy', intensity: smileScore };
+      if (openMouths > 3) return { emotion: 'excited', intensity: openMouths / 5 };
+      if (smileScore < -0.2) return { emotion: 'concerned', intensity: Math.abs(smileScore) };
+      return { emotion: 'neutral', intensity: 0.5 };
+    };
+
+    // Estimate tongue visibility from phoneme
+    const estimateTongueVisibility = (phoneme, mouthOpenness) => {
+      const tonguePhonemes = ['L', 'TH', 'D', 'T', 'N'];
+      // Map our 5 phonemes to tongue visibility
+      if (phoneme === 'neutral' && mouthOpenness > 0.2 && mouthOpenness < 0.4) {
+        return { visible: true, position: 'tip', intensity: 0.3 };
+      }
+      if (phoneme === 'EE') {
+        return { visible: true, position: 'front', intensity: 0.5 };
+      }
+      return { visible: false, position: null, intensity: 0 };
+    };
+
+    const computeHistogram = (imageData) => {
+      const hist = new Array(256).fill(0);
+      const data = imageData.data;
+      for (let i = 0; i < data.length; i += 4) {
+        const gray = Math.round(0.299 * data[i] + 0.587 * data[i+1] + 0.114 * data[i+2]);
+        hist[gray]++;
+      }
+      return hist;
+    };
+
+    const chiSquaredDistance = (hist1, hist2) => {
+      let distance = 0;
+      for (let i = 0; i < 256; i++) {
+        if (hist1[i] + hist2[i] > 0) {
+          distance += Math.pow(hist1[i] - hist2[i], 2) / (hist1[i] + hist2[i]);
+        }
+      }
+      return distance;
+    };
+
+    const extractColorPalette = (imageData, k = 5) => {
+      const pixels = [];
+      const data = imageData.data;
+      for (let i = 0; i < data.length; i += 40) {
+        pixels.push([data[i], data[i+1], data[i+2]]);
+      }
+      let centroids = [];
+      for (let i = 0; i < k; i++) {
+        centroids.push(pixels[Math.floor(Math.random() * pixels.length)].slice());
+      }
+      for (let iter = 0; iter < 10; iter++) {
+        const clusters = Array.from({ length: k }, () => []);
+        for (const pixel of pixels) {
+          let minDist = Infinity;
+          let closest = 0;
+          for (let c = 0; c < k; c++) {
+            const dist = Math.sqrt(
+              Math.pow(pixel[0] - centroids[c][0], 2) +
+              Math.pow(pixel[1] - centroids[c][1], 2) +
+              Math.pow(pixel[2] - centroids[c][2], 2)
+            );
+            if (dist < minDist) {
+              minDist = dist;
+              closest = c;
+            }
+          }
+          clusters[closest].push(pixel);
+        }
+        for (let c = 0; c < k; c++) {
+          if (clusters[c].length > 0) {
+            centroids[c] = [
+              Math.round(clusters[c].reduce((s, p) => s + p[0], 0) / clusters[c].length),
+              Math.round(clusters[c].reduce((s, p) => s + p[1], 0) / clusters[c].length),
+              Math.round(clusters[c].reduce((s, p) => s + p[2], 0) / clusters[c].length)
+            ];
+          }
+        }
+      }
+      return centroids.map(c => `rgb(${c[0]},${c[1]},${c[2]})`);
+    };
+
+    // FIX: Proper video seek helper to prevent race conditions
+    const waitForSeek = (video, targetTime, timeout = 5000) => {
+      return new Promise((resolve) => {
+        const handler = () => {
+          video.removeEventListener('seeked', handler);
+          resolve();
+        };
+        video.addEventListener('seeked', handler);
+        video.currentTime = targetTime;
+        // Safety timeout in case seeked event never fires
+        setTimeout(() => {
+          video.removeEventListener('seeked', handler);
+          resolve();
+        }, timeout);
+      });
+    };
+
+    // ============================================
+    // MAIN APP
+    // ============================================
+    function App() {
+      // Mode state
+      const [activeMode, setActiveMode] = useState('lip-sync');
+
+      // Video state
+      const [videoFile, setVideoFile] = useState(null);
+      const [videoUrl, setVideoUrl] = useState(null);
+      const [videoDuration, setVideoDuration] = useState(0);
+      const videoRef = useRef(null);
+
+      // Second video for multi-sync
+      const [video2File, setVideo2File] = useState(null);
+      const [video2Url, setVideo2Url] = useState(null);
+      const video2Ref = useRef(null);
+      const [timeOffset, setTimeOffset] = useState(0);
+      const [syncViewMode, setSyncViewMode] = useState('side-by-side');
+
+      // Library dependencies
+      const [cvLoaded, setCvLoaded] = useState(false);
+      const [faceApiLoaded, setFaceApiLoaded] = useState(false);
+
+      // Frame Extraction state
+      const [extractFps, setExtractFps] = useState(10);
+      const [extractStart, setExtractStart] = useState(0);
+      const [extractEnd, setExtractEnd] = useState(0);
+      const [sceneChangeThreshold, setSceneChangeThreshold] = useState(0.3);
+      const [detectSceneChanges, setDetectSceneChanges] = useState(false);
+      const [detectKeyframes, setDetectKeyframes] = useState(false);
+      const [extractedFrames, setExtractedFrames] = useState([]);
+      const [selectedFrames, setSelectedFrames] = useState(new Set());
+      const [isExtracting, setIsExtracting] = useState(false);
+      const [extractProgress, setExtractProgress] = useState(0);
+      const [exportFormat, setExportFormat] = useState('png');
+
+      // Pattern Library state
+      const [patterns, setPatterns] = useState([]);
+      const [patternSearch, setPatternSearch] = useState('');
+      const [patternCategory, setPatternCategory] = useState('all');
+      const [isDetectingUI, setIsDetectingUI] = useState(false);
+      const [patternDrawMode, setPatternDrawMode] = useState(false);
+      const [currentPatternSelection, setCurrentPatternSelection] = useState(null);
+
+      // Lip Sync state
+      const [lipSyncData, setLipSyncData] = useState([]);
+      const [isAnalyzingLipSync, setIsAnalyzingLipSync] = useState(false);
+      const [lipSyncProgress, setLipSyncProgress] = useState(0);
+      const [showPhonemeGraph, setShowPhonemeGraph] = useState(true);
+
+      // TEXT TIMING STATES (NEW)
+      const [scriptText, setScriptText] = useState('');
+      const [scriptWords, setScriptWords] = useState([]);
+      const [activeWordIndex, setActiveWordIndex] = useState(-1);
+      const [isTimingMode, setIsTimingMode] = useState(false);
+      const [timingWordIndex, setTimingWordIndex] = useState(-1);
+
+      // Speech Recognition state
+      const [isListening, setIsListening] = useState(false);
+      const [recognitionSupported, setRecognitionSupported] = useState(false);
+      const [transcribedText, setTranscribedText] = useState('');
+      const recognitionRef = useRef(null);
+
+      // Subtitle import state
+      const [importedSubtitles, setImportedSubtitles] = useState([]);
+
+      // Alignment score
+      const [alignmentScore, setAlignmentScore] = useState(null);
+
+      // Whisper API state
+      const [openaiApiKey, setOpenaiApiKey] = useState(() => localStorage.getItem('openai_api_key') || '');
+      const [isTranscribing, setIsTranscribing] = useState(false);
+      const [transcribeProgress, setTranscribeProgress] = useState('');
+
+      // Check OpenCV loading
+      useEffect(() => {
+        const check = setInterval(() => {
+          if (window.cv && window.cv.Mat) {
+            setCvLoaded(true);
+            clearInterval(check);
+          }
+        }, 500);
+        return () => clearInterval(check);
+      }, []);
+
+      // Check face-api.js loading
+      useEffect(() => {
+        const loadFaceApi = async () => {
+          const check = setInterval(async () => {
+            if (window.faceapi) {
+              clearInterval(check);
+              try {
+                const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.12/model';
+                await Promise.all([
+                  faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+                  faceapi.nets.faceLandmark68TinyNet.loadFromUri(MODEL_URL)
+                ]);
+                setFaceApiLoaded(true);
+              } catch (err) {
+                console.error('Failed to load face-api models:', err);
+              }
+            }
+          }, 500);
+        };
+        loadFaceApi();
+      }, []);
+
+      // Check Speech Recognition support - FIX: Add proper cleanup
+      useEffect(() => {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        setRecognitionSupported(!!SpeechRecognition);
+        if (SpeechRecognition) {
+          recognitionRef.current = new SpeechRecognition();
+          recognitionRef.current.continuous = true;
+          recognitionRef.current.interimResults = true;
+          recognitionRef.current.lang = 'en-US';
+
+          recognitionRef.current.onresult = (event) => {
+            let transcript = '';
+            for (let i = 0; i < event.results.length; i++) {
+              transcript += event.results[i][0].transcript;
+            }
+            setTranscribedText(transcript);
+          };
+
+          recognitionRef.current.onerror = (event) => {
+            console.error('Speech recognition error:', event.error);
+            setIsListening(false);
+          };
+
+          recognitionRef.current.onend = () => {
+            setIsListening(false);
+          };
+        }
+
+        // FIX: Cleanup on unmount
+        return () => {
+          if (recognitionRef.current) {
+            try {
+              recognitionRef.current.abort();
+            } catch (e) {
+              // Ignore errors on cleanup
+            }
+            recognitionRef.current = null;
+          }
+        };
+      }, []);
+
+      // Load patterns from IndexedDB
+      useEffect(() => {
+        loadPatterns().then(setPatterns).catch(console.error);
+      }, []);
+
+      // Initialize video metadata
+      useEffect(() => {
+        if (videoRef.current && videoUrl) {
+          const video = videoRef.current;
+          const init = () => {
+            if (video.duration && video.duration > 0) {
+              setVideoDuration(video.duration);
+              setExtractEnd(video.duration);
+            }
+          };
+          video.addEventListener('loadedmetadata', init);
+          if (video.duration > 0) init();
+          return () => video.removeEventListener('loadedmetadata', init);
+        }
+      }, [videoUrl]);
+
+      // Update active word based on video time - FIX: Only update when index changes
+      const lastActiveIndexRef = useRef(-1);
+
+      useEffect(() => {
+        if (!videoRef.current || scriptWords.length === 0) return;
+        const video = videoRef.current;
+
+        const handleTimeUpdate = () => {
+          const currentTime = video.currentTime;
+          const idx = scriptWords.findIndex(w =>
+            w.startTime !== undefined &&
+            w.endTime !== undefined &&
+            currentTime >= w.startTime &&
+            currentTime <= w.endTime
+          );
+          // FIX: Only update state if index actually changed
+          if (idx !== lastActiveIndexRef.current) {
+            lastActiveIndexRef.current = idx;
+            setActiveWordIndex(idx);
+          }
+        };
+
+        video.addEventListener('timeupdate', handleTimeUpdate);
+        return () => {
+          video.removeEventListener('timeupdate', handleTimeUpdate);
+          lastActiveIndexRef.current = -1;
+        };
+      }, [scriptWords]);
+
+      // File handlers - FIX: Revoke old Blob URLs to prevent memory leaks
+      const handleFileChange = (e, isSecondVideo = false) => {
+        const file = e.target.files?.[0];
+        if (file && file.type.startsWith('video/')) {
+          if (isSecondVideo) {
+            // Revoke old URL before creating new one
+            if (video2Url) URL.revokeObjectURL(video2Url);
+            setVideo2File(file);
+            setVideo2Url(URL.createObjectURL(file));
+          } else {
+            // Revoke old URL before creating new one
+            if (videoUrl) URL.revokeObjectURL(videoUrl);
+            setVideoFile(file);
+            setVideoUrl(URL.createObjectURL(file));
+            setExtractedFrames([]);
+            setSelectedFrames(new Set());
+            setLipSyncData([]);
+            setScriptWords([]);
+            setScriptText('');
+            setTranscribeProgress('');
+          }
+        }
+      };
+
+      const handleDrop = (e, isSecondVideo = false) => {
+        e.preventDefault();
+        const file = e.dataTransfer.files?.[0];
+        if (file && file.type.startsWith('video/')) {
+          if (isSecondVideo) {
+            // Revoke old URL before creating new one
+            if (video2Url) URL.revokeObjectURL(video2Url);
+            setVideo2File(file);
+            setVideo2Url(URL.createObjectURL(file));
+          } else {
+            // Revoke old URL before creating new one
+            if (videoUrl) URL.revokeObjectURL(videoUrl);
+            setVideoFile(file);
+            setVideoUrl(URL.createObjectURL(file));
+            setExtractedFrames([]);
+            setSelectedFrames(new Set());
+            setLipSyncData([]);
+            setScriptWords([]);
+            setScriptText('');
+            setTranscribeProgress('');
+          }
+        }
+      };
+
+      const clearVideo = (isSecondVideo = false) => {
+        if (isSecondVideo) {
+          // FIX: Revoke Blob URL before clearing
+          if (video2Url) URL.revokeObjectURL(video2Url);
+          setVideo2File(null);
+          setVideo2Url(null);
+        } else {
+          // FIX: Revoke Blob URL before clearing
+          if (videoUrl) URL.revokeObjectURL(videoUrl);
+          setVideoFile(null);
+          setVideoUrl(null);
+          setExtractedFrames([]);
+          setSelectedFrames(new Set());
+          setLipSyncData([]);
+          setScriptWords([]);
+          setScriptText('');
+          setTranscribeProgress('');
+          setAlignmentScore(null);
+        }
+      };
+
+      const formatTime = (seconds) => {
+        const mins = Math.floor(seconds / 60);
+        const secs = Math.floor(seconds % 60);
+        const ms = Math.floor((seconds % 1) * 100);
+        return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}.${ms.toString().padStart(2, '0')}`;
+      };
+
+      // ============================================
+      // TEXT TIMING FUNCTIONS
+      // ============================================
+      const processScriptText = () => {
+        const words = scriptText
+          .split(/\s+/)
+          .filter(w => w.trim())
+          .map((word, i) => ({
+            id: i,
+            word: word,
+            phonemes: textToPhonemes(word),
+            mouthShapes: textToPhonemes(word).map(phonemeToMouth),
+            startTime: undefined,
+            endTime: undefined
+          }));
+        setScriptWords(words);
+        setActiveWordIndex(-1);
+      };
+
+      const startTimingMode = () => {
+        setIsTimingMode(true);
+        setTimingWordIndex(0);
+        if (videoRef.current) {
+          videoRef.current.currentTime = 0;
+          videoRef.current.play();
+        }
+      };
+
+      const markWordStart = () => {
+        if (timingWordIndex < 0 || timingWordIndex >= scriptWords.length) return;
+        const currentTime = videoRef.current?.currentTime || 0;
+
+        setScriptWords(prev => prev.map((w, i) =>
+          i === timingWordIndex ? { ...w, startTime: currentTime } : w
+        ));
+      };
+
+      const markWordEnd = () => {
+        if (timingWordIndex < 0 || timingWordIndex >= scriptWords.length) return;
+        const currentTime = videoRef.current?.currentTime || 0;
+
+        setScriptWords(prev => prev.map((w, i) =>
+          i === timingWordIndex ? { ...w, endTime: currentTime } : w
+        ));
+
+        // Move to next word
+        if (timingWordIndex < scriptWords.length - 1) {
+          setTimingWordIndex(timingWordIndex + 1);
+        } else {
+          setIsTimingMode(false);
+          setTimingWordIndex(-1);
+          if (videoRef.current) videoRef.current.pause();
+        }
+      };
+
+      const autoTimingFromLipSync = () => {
+        if (lipSyncData.length === 0 || scriptWords.length === 0) return;
+
+        // Estimate word duration based on phoneme count
+        const totalPhonemes = scriptWords.reduce((sum, w) => sum + w.phonemes.length, 0);
+        const avgPhonemeTime = videoDuration / totalPhonemes;
+
+        let currentTime = 0;
+        const timedWords = scriptWords.map(w => {
+          const duration = w.phonemes.length * avgPhonemeTime;
+          const word = {
+            ...w,
+            startTime: currentTime,
+            endTime: currentTime + duration
+          };
+          currentTime += duration;
+          return word;
+        });
+
+        setScriptWords(timedWords);
+      };
+
+      const clearWordTiming = (idx) => {
+        setScriptWords(prev => prev.map((w, i) =>
+          i === idx ? { ...w, startTime: undefined, endTime: undefined } : w
+        ));
+      };
+
+      const clearAllTiming = () => {
+        setScriptWords(prev => prev.map(w => ({
+          ...w, startTime: undefined, endTime: undefined
+        })));
+      };
+
+      // ============================================
+      // SPEECH RECOGNITION
+      // ============================================
+      const toggleListening = () => {
+        if (!recognitionRef.current) return;
+
+        if (isListening) {
+          recognitionRef.current.stop();
+          setIsListening(false);
+        } else {
+          setTranscribedText('');
+          recognitionRef.current.start();
+          setIsListening(true);
+          if (videoRef.current) {
+            videoRef.current.currentTime = 0;
+            videoRef.current.play();
+          }
+        }
+      };
+
+      const applyTranscription = () => {
+        setScriptText(transcribedText);
+        setTranscribedText('');
+      };
+
+      // ============================================
+      // WHISPER API TRANSCRIPTION
+      // ============================================
+      const saveApiKey = (key) => {
+        setOpenaiApiKey(key);
+        localStorage.setItem('openai_api_key', key);
+      };
+
+      // FIX 1.3: AbortController ref for cancelling transcription
+      const transcribeAbortRef = useRef(null);
+
+      const transcribeWithWhisper = async () => {
+        if (!videoFile || !openaiApiKey) {
+          alert('Please upload a video and enter your OpenAI API key');
+          return;
+        }
+
+        // FIX 1.3: Capture values at start to detect race conditions
+        const capturedApiKey = openaiApiKey;
+        const capturedVideoFile = videoFile;
+        const capturedVideoName = videoFile.name;
+
+        // Cancel any previous transcription in progress
+        if (transcribeAbortRef.current) {
+          transcribeAbortRef.current.abort();
+        }
+        transcribeAbortRef.current = new AbortController();
+        const signal = transcribeAbortRef.current.signal;
+
+        setIsTranscribing(true);
+        setTranscribeProgress('Extracting audio from video...');
+        let audioContext = null;
+
+        try {
+          // Check if aborted
+          if (signal.aborted) throw new Error('Transcription cancelled');
+
+          // Create audio context to extract audio
+          audioContext = new (window.AudioContext || window.webkitAudioContext)();
+
+          // Read video file as array buffer
+          const arrayBuffer = await capturedVideoFile.arrayBuffer();
+
+          // Decode audio from video with specific error handling
+          setTranscribeProgress('Decoding audio...');
+          let audioBuffer;
+          try {
+            audioBuffer = await audioContext.decodeAudioData(arrayBuffer.slice(0));
+          } catch (decodeError) {
+            throw new Error('Failed to extract audio. Ensure video has valid audio track.');
+          }
+
+          if (!audioBuffer || audioBuffer.duration === 0) {
+            throw new Error('No audio data found in video.');
+          }
+
+          setTranscribeProgress(`Audio: ${audioBuffer.duration.toFixed(1)}s, ${audioBuffer.numberOfChannels} channel(s)`);
+          await new Promise(r => setTimeout(r, 500)); // Brief pause to show info
+
+          // Convert to WAV format for Whisper API
+          setTranscribeProgress('Converting to WAV...');
+          const wavBlob = audioBufferToWav(audioBuffer);
+
+          // Check if aborted before API call
+          if (signal.aborted) throw new Error('Transcription cancelled');
+
+          // Send to Whisper API
+          setTranscribeProgress('Sending to Whisper API...');
+          const formData = new FormData();
+          formData.append('file', wavBlob, 'audio.wav');
+          formData.append('model', 'whisper-1');
+          formData.append('response_format', 'verbose_json');
+          formData.append('timestamp_granularities[]', 'word');
+
+          const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${capturedApiKey}`  // FIX 1.3: Use captured key
+            },
+            body: formData,
+            signal: signal  // FIX 1.3: Allow abort
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            if (response.status === 401) {
+              throw new Error('Invalid API key. Check your OpenAI API key.');
+            } else if (response.status === 429) {
+              throw new Error('Rate limited. Wait a moment and try again.');
+            } else if (response.status === 413) {
+              throw new Error('Audio too large. Try a shorter video.');
+            }
+            throw new Error(errorData.error?.message || `API error: ${response.status}`);
+          }
+
+          setTranscribeProgress('Processing transcription...');
+          const result = await response.json();
+
+          // FIX 1.3: Check if video changed during transcription
+          if (videoFile?.name !== capturedVideoName) {
+            throw new Error('Video changed during transcription. Results discarded.');
+          }
+
+          // Parse word-level timestamps with validation
+          if (result.words && result.words.length > 0) {
+            const validWords = result.words
+              .filter(w => w.word && typeof w.start === 'number' && typeof w.end === 'number')
+              .map((w, i) => {
+                const word = w.word.trim();
+                const phonemes = textToPhonemes(word);
+                return {
+                  id: i,
+                  word: word,
+                  phonemes: phonemes,
+                  mouthShapes: phonemes.map(phonemeToMouth),
+                  startTime: Math.max(0, w.start),
+                  endTime: Math.max(w.start, w.end)
+                };
+              });
+
+            if (validWords.length > 0) {
+              setScriptWords(validWords);
+              setScriptText(result.text || validWords.map(w => w.word).join(' '));
+              setTranscribeProgress(`Done! ${validWords.length} words with timestamps.`);
+            } else {
+              setScriptText(result.text || '');
+              setTranscribeProgress('Transcribed but no valid word timestamps.');
+            }
+          } else if (result.text) {
+            // Fallback if no word timestamps
+            setScriptText(result.text);
+            processScriptText();
+            setTranscribeProgress('Transcribed (manual timing needed).');
+          } else {
+            throw new Error('No transcription returned from API.');
+          }
+
+        } catch (error) {
+          console.error('Whisper transcription error:', error);
+          setTranscribeProgress(`Error: ${error.message}`);
+        } finally {
+          // Clean up AudioContext to prevent memory leak
+          if (audioContext && audioContext.state !== 'closed') {
+            try {
+              await audioContext.close();
+            } catch (e) {
+              // Ignore close errors
+            }
+          }
+          setIsTranscribing(false);
+        }
+      };
+
+      // Convert AudioBuffer to WAV Blob - properly mixes stereo to mono
+      const audioBufferToWav = (buffer) => {
+        const numChannels = 1; // Mono for speech
+        const sampleRate = Math.min(buffer.sampleRate, 16000); // Whisper works well with 16kHz
+        const format = 1; // PCM
+        const bitDepth = 16;
+
+        // FIX: Properly mix all channels to mono (not just channel 0)
+        const channelCount = buffer.numberOfChannels;
+        const originalLength = buffer.getChannelData(0).length;
+        const mixedData = new Float32Array(originalLength);
+
+        // Average all channels together
+        for (let c = 0; c < channelCount; c++) {
+          const channelData = buffer.getChannelData(c);
+          for (let i = 0; i < originalLength; i++) {
+            mixedData[i] += channelData[i] / channelCount;
+          }
+        }
+
+        // Resample to target sample rate
+        const resampleRatio = buffer.sampleRate / sampleRate;
+        const newLength = Math.floor(originalLength / resampleRatio);
+        const samples = new Float32Array(newLength);
+
+        for (let i = 0; i < newLength; i++) {
+          samples[i] = mixedData[Math.floor(i * resampleRatio)];
+        }
+
+        const dataLength = samples.length * (bitDepth / 8);
+        const bufferLength = 44 + dataLength;
+        const wavBuffer = new ArrayBuffer(bufferLength);
+        const view = new DataView(wavBuffer);
+
+        // WAV header
+        const writeString = (offset, string) => {
+          for (let i = 0; i < string.length; i++) {
+            view.setUint8(offset + i, string.charCodeAt(i));
+          }
+        };
+
+        writeString(0, 'RIFF');
+        view.setUint32(4, bufferLength - 8, true);
+        writeString(8, 'WAVE');
+        writeString(12, 'fmt ');
+        view.setUint32(16, 16, true);
+        view.setUint16(20, format, true);
+        view.setUint16(22, numChannels, true);
+        view.setUint32(24, sampleRate, true);
+        view.setUint32(28, sampleRate * numChannels * (bitDepth / 8), true);
+        view.setUint16(32, numChannels * (bitDepth / 8), true);
+        view.setUint16(34, bitDepth, true);
+        writeString(36, 'data');
+        view.setUint32(40, dataLength, true);
+
+        // Write audio data
+        let offset = 44;
+        for (let i = 0; i < samples.length; i++) {
+          const sample = Math.max(-1, Math.min(1, samples[i]));
+          view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7FFF, true);
+          offset += 2;
+        }
+
+        return new Blob([wavBuffer], { type: 'audio/wav' });
+      };
+
+      // ============================================
+      // SUBTITLE IMPORT/EXPORT
+      // ============================================
+      const handleSubtitleImport = (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const text = event.target.result;
+          let subtitles;
+
+          if (file.name.endsWith('.vtt')) {
+            subtitles = parseVTT(text);
+          } else {
+            subtitles = parseSRT(text);
+          }
+
+          setImportedSubtitles(subtitles);
+
+          // Convert to words with timing - FIX: Validate timestamps
+          const words = [];
+          subtitles.forEach(sub => {
+            // Validate subtitle has valid timing
+            if (typeof sub.start !== 'number' || typeof sub.end !== 'number') return;
+            if (sub.end <= sub.start) return;
+
+            const subWords = sub.text.split(/\s+/).filter(w => w.trim());
+            if (subWords.length === 0) return;
+
+            const wordDuration = Math.max(0.01, (sub.end - sub.start) / subWords.length);
+
+            subWords.forEach((word, i) => {
+              const startTime = Math.max(0, sub.start + (i * wordDuration));
+              const endTime = Math.max(startTime + 0.01, sub.start + ((i + 1) * wordDuration));
+              const phonemes = textToPhonemes(word);
+
+              words.push({
+                id: words.length,
+                word: word,
+                phonemes: phonemes,
+                mouthShapes: phonemes.map(phonemeToMouth),
+                startTime: startTime,
+                endTime: endTime
+              });
+            });
+          });
+
+          setScriptWords(words);
+          setScriptText(subtitles.map(s => s.text).join(' '));
+        };
+        reader.readAsText(file);
+      };
+
+      const exportToSRT = () => {
+        const srt = generateSRT(scriptWords);
+        const blob = new Blob([srt], { type: 'text/plain' });
+        saveAs(blob, `${videoFile?.name.replace(/\.[^/.]+$/, '') || 'video'}_subtitles.srt`);
+      };
+
+      // ============================================
+      // ALIGNMENT SCORE - FIX: Use useCallback and proper dependencies
+      // ============================================
+      const calculateAlignmentScore = useCallback(() => {
+        if (lipSyncData.length === 0 || scriptWords.length === 0) {
+          setAlignmentScore(null);
+          return;
+        }
+
+        const timedWords = scriptWords.filter(w => w.startTime !== undefined);
+        if (timedWords.length === 0) {
+          setAlignmentScore(null);
+          return;
+        }
+
+        let matches = 0;
+        let total = 0;
+
+        timedWords.forEach(word => {
+          // Find lip sync frames during this word
+          const frames = lipSyncData.filter(f =>
+            f.timestamp >= word.startTime && f.timestamp <= word.endTime
+          );
+
+          if (frames.length === 0) return;
+
+          // Check if detected phonemes match expected
+          const expectedMouths = word.mouthShapes;
+          const detectedMouths = frames.map(f => f.phoneme);
+
+          expectedMouths.forEach(expected => {
+            total++;
+            if (detectedMouths.includes(expected)) {
+              matches++;
+            }
+          });
+        });
+
+        const score = total > 0 ? Math.round((matches / total) * 100) : 0;
+        setAlignmentScore(score);
+      }, [lipSyncData, scriptWords]);
+
+      // FIX: Use lengths in dependency array to prevent re-runs on same data
+      const lipSyncDataLength = lipSyncData.length;
+      const timedWordsCount = scriptWords.filter(w => w.startTime !== undefined).length;
+
+      useEffect(() => {
+        if (lipSyncDataLength > 0 && timedWordsCount > 0) {
+          calculateAlignmentScore();
+        }
+      }, [lipSyncDataLength, timedWordsCount, calculateAlignmentScore]);
+
+      // FIX 6.2: Memoize phoneme counts to prevent recalculation on every render
+      const phonemeCounts = React.useMemo(() => {
+        const counts = { 'AH': 0, 'EE': 0, 'OH': 0, 'MM': 0, 'neutral': 0 };
+        const total = lipSyncData.length;
+        if (total === 0) return { counts, total };
+
+        lipSyncData.forEach(f => {
+          if (counts.hasOwnProperty(f.phoneme)) {
+            counts[f.phoneme]++;
+          }
+        });
+        return { counts, total };
+      }, [lipSyncData]);
+
+      // FIX 2.2: Memoize word timeline markers to prevent recalculation
+      const wordTimelineMarkers = React.useMemo(() => {
+        if (videoDuration === 0) return [];
+        return scriptWords
+          .filter(w => w.startTime !== undefined && w.endTime !== undefined)
+          .map(w => ({
+            id: w.id,
+            word: w.word,
+            left: (w.startTime / videoDuration) * 100,
+            width: ((w.endTime - w.startTime) / videoDuration) * 100
+          }));
+      }, [scriptWords, videoDuration]);
+
+      // ============================================
+      // FRAME EXTRACTION
+      // ============================================
+      const extractFrames = async () => {
+        if (!videoRef.current) return;
+        setIsExtracting(true);
+        setExtractProgress(0);
+        setExtractedFrames([]);
+        setSelectedFrames(new Set());
+
+        const video = videoRef.current;
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext('2d');
+
+        const duration = extractEnd - extractStart;
+        const frameCount = Math.ceil(duration * extractFps);
+        const frames = [];
+        let prevHistogram = null;
+
+        for (let i = 0; i < frameCount; i++) {
+          const time = extractStart + (i / extractFps);
+          await waitForSeek(video, time);
+
+          ctx.drawImage(video, 0, 0);
+          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+          let isSceneChange = false;
+          let hasFace = false;
+
+          if (detectSceneChanges) {
+            const histogram = computeHistogram(imageData);
+            if (prevHistogram) {
+              const distance = chiSquaredDistance(prevHistogram, histogram);
+              isSceneChange = distance > sceneChangeThreshold * 100000;
+            }
+            prevHistogram = histogram;
+          }
+
+          if (detectKeyframes && faceApiLoaded) {
+            try {
+              const options = new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.5 });
+              const detection = await faceapi.detectSingleFace(video, options);
+              hasFace = !!detection;
+            } catch (e) {
+              // FIX: Log face detection failures instead of silent catch
+              console.warn(`Face detection failed at frame ${i}:`, e.message);
+            }
+          }
+
+          frames.push({
+            index: i,
+            time,
+            imageData: canvas.toDataURL(`image/${exportFormat}`, 0.9),
+            isSceneChange,
+            hasFace,
+            width: canvas.width,
+            height: canvas.height
+          });
+          setExtractProgress(Math.round(((i + 1) / frameCount) * 100));
+        }
+
+        setExtractedFrames(frames);
+        setIsExtracting(false);
+      };
+
+      const toggleFrameSelection = (index) => {
+        setSelectedFrames(prev => {
+          const next = new Set(prev);
+          next.has(index) ? next.delete(index) : next.add(index);
+          return next;
+        });
+      };
+
+      const exportSelectedFrames = async () => {
+        const selected = extractedFrames.filter(f => selectedFrames.has(f.index));
+        if (selected.length === 0) return;
+
+        const zip = new JSZip();
+        const manifest = { source: videoFile?.name, fps: extractFps, format: exportFormat, frames: [] };
+
+        for (const frame of selected) {
+          const filename = `frame_${frame.index.toString().padStart(5, '0')}.${exportFormat}`;
+          zip.file(filename, frame.imageData.split(',')[1], { base64: true });
+          manifest.frames.push({ filename, index: frame.index, time: frame.time, isSceneChange: frame.isSceneChange, hasFace: frame.hasFace });
+        }
+
+        zip.file('manifest.json', JSON.stringify(manifest, null, 2));
+        const content = await zip.generateAsync({ type: 'blob' });
+        saveAs(content, `${videoFile?.name.replace(/\.[^/.]+$/, '') || 'frames'}_extracted.zip`);
+      };
+
+      // ============================================
+      // PATTERN LIBRARY
+      // ============================================
+      const handlePatternMouseDown = (e) => {
+        if (!patternDrawMode || !videoRef.current) return;
+        const rect = e.currentTarget.getBoundingClientRect();
+        const x = (e.clientX - rect.left) / rect.width;
+        const y = (e.clientY - rect.top) / rect.height;
+        setCurrentPatternSelection({ startX: x, startY: y, x, y, w: 0, h: 0 });
+      };
+
+      const handlePatternMouseMove = (e) => {
+        if (!currentPatternSelection || !patternDrawMode) return;
+        const rect = e.currentTarget.getBoundingClientRect();
+        const x = (e.clientX - rect.left) / rect.width;
+        const y = (e.clientY - rect.top) / rect.height;
+        setCurrentPatternSelection({
+          ...currentPatternSelection,
+          x: Math.min(currentPatternSelection.startX, x),
+          y: Math.min(currentPatternSelection.startY, y),
+          w: Math.abs(x - currentPatternSelection.startX),
+          h: Math.abs(y - currentPatternSelection.startY),
+        });
+      };
+
+      const handlePatternMouseUp = async () => {
+        if (!currentPatternSelection || currentPatternSelection.w < 0.02) {
+          setCurrentPatternSelection(null);
+          return;
+        }
+
+        const video = videoRef.current;
+        const canvas = document.createElement('canvas');
+        const region = currentPatternSelection;
+        const x = Math.round(region.x * video.videoWidth);
+        const y = Math.round(region.y * video.videoHeight);
+        const w = Math.round(region.w * video.videoWidth);
+        const h = Math.round(region.h * video.videoHeight);
+
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(video, x, y, w, h, 0, 0, w, h);
+
+        const imageData = ctx.getImageData(0, 0, w, h);
+        const colors = extractColorPalette(imageData, 5);
+
+        const pattern = {
+          id: `pattern_${Date.now()}`,
+          type: 'manual',
+          subtype: 'region',
+          name: `Pattern ${patterns.length + 1}`,
+          source: { videoName: videoFile?.name, timestamp: video.currentTime, region: { x, y, w, h } },
+          thumbnail: canvas.toDataURL('image/jpeg', 0.8),
+          dimensions: { width: w, height: h },
+          analysis: { dominantColors: colors },
+          tags: [],
+          category: 'uncategorized',
+          createdAt: Date.now()
+        };
+
+        await savePattern(pattern);
+        setPatterns(prev => [...prev, pattern]);
+        setCurrentPatternSelection(null);
+        setPatternDrawMode(false);
+      };
+
+      const removePattern = async (id) => {
+        await deletePattern(id);
+        setPatterns(prev => prev.filter(p => p.id !== id));
+      };
+
+      const filteredPatterns = patterns.filter(p => {
+        const matchesSearch = !patternSearch || p.name.toLowerCase().includes(patternSearch.toLowerCase());
+        const matchesCategory = patternCategory === 'all' || p.category === patternCategory;
+        return matchesSearch && matchesCategory;
+      });
+
+      // ============================================
+      // LIP SYNC ANALYSIS
+      // ============================================
+      const analyzeLipSync = async () => {
+        if (!videoRef.current || !faceApiLoaded) return;
+        setIsAnalyzingLipSync(true);
+        setLipSyncProgress(0);
+        setLipSyncData([]);
+
+        const video = videoRef.current;
+        const fps = 15;
+        const frameCount = Math.floor(video.duration * fps);
+        const frames = [];
+
+        // Track recent phonemes for emotion detection
+        const recentPhonemes = [];
+        const phonemeWindowSize = 10;
+
+        for (let i = 0; i < frameCount; i++) {
+          const targetTime = i / fps;
+          await waitForSeek(video, targetTime);
+
+          try {
+            const options = new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.5 });
+            const detection = await faceapi.detectSingleFace(video, options).withFaceLandmarks(true);
+
+            if (detection) {
+              const landmarks = detection.landmarks;
+              const mouth = landmarks.getMouth();
+              const box = detection.detection.box;
+
+              // === MOUTH ANALYSIS ===
+              const topLip = mouth[14];
+              const bottomLip = mouth[18];
+              const leftCorner = mouth[0];
+              const rightCorner = mouth[6];
+
+              const mouthHeight = Math.abs(bottomLip.y - topLip.y);
+              const mouthWidthPx = Math.abs(rightCorner.x - leftCorner.x);
+              const mouthOpenness = Math.min(1, mouthHeight / (mouthWidthPx * 0.6));
+              const normalizedWidth = mouthWidthPx / video.videoWidth;
+
+              const phonemeData = estimatePhoneme(mouthOpenness, normalizedWidth);
+
+              // Track phonemes for emotion window
+              recentPhonemes.push(phonemeData.phoneme);
+              if (recentPhonemes.length > phonemeWindowSize) recentPhonemes.shift();
+
+              // === EYE ANALYSIS ===
+              const leftEye = landmarks.getLeftEye();
+              const rightEye = landmarks.getRightEye();
+              const leftEyeOpenness = calculateEyeOpenness(leftEye);
+              const rightEyeOpenness = calculateEyeOpenness(rightEye);
+              const avgEyeOpenness = (leftEyeOpenness + rightEyeOpenness) / 2;
+              const isBlinking = avgEyeOpenness < 0.3;
+
+              // === EYEBROW ANALYSIS ===
+              const leftBrow = landmarks.getLeftEyeBrow();
+              const rightBrow = landmarks.getRightEyeBrow();
+              const leftBrowHeight = calculateBrowHeight(leftBrow, leftEye, box.height);
+              const rightBrowHeight = calculateBrowHeight(rightBrow, rightEye, box.height);
+
+              // === HEAD POSE ===
+              const headPose = estimateHeadPose(landmarks, box, video.videoWidth, video.videoHeight);
+
+              // === LIP CORNERS ===
+              const lipCorners = calculateLipCorners(mouth, box);
+
+              // === EMOTION ===
+              const emotion = estimateEmotion(recentPhonemes, normalizedWidth, lipCorners);
+
+              // === TONGUE ===
+              const tongue = estimateTongueVisibility(phonemeData.phoneme, mouthOpenness);
+
+              // === GRID CELL ===
+              const gridCols = 24;
+              const gridRows = 12;
+              const mouthCenterX = (leftCorner.x + rightCorner.x) / 2;
+              const mouthCenterY = (topLip.y + bottomLip.y) / 2;
+              const gridCol = Math.floor((mouthCenterX / video.videoWidth) * gridCols);
+              const gridRow = Math.floor((mouthCenterY / video.videoHeight) * gridRows);
+
+              frames.push({
+                index: i,
+                timestamp: i / fps,
+                // Mouth control
+                mouthOpenness,
+                mouthWidth: normalizedWidth,
+                phoneme: phonemeData.phoneme,
+                confidence: phonemeData.confidence,
+                lipCorners,
+                // Eye control
+                eyes: {
+                  left: leftEyeOpenness,
+                  right: rightEyeOpenness,
+                  avg: avgEyeOpenness,
+                  isBlinking
+                },
+                // Eyebrow control
+                eyebrows: {
+                  left: leftBrowHeight,
+                  right: rightBrowHeight,
+                  avg: (leftBrowHeight + rightBrowHeight) / 2
+                },
+                // Head pose
+                headPose,
+                // Emotion
+                emotion,
+                // Tongue
+                tongue,
+                // Position data
+                mouthCenter: { x: mouthCenterX / video.videoWidth, y: mouthCenterY / video.videoHeight },
+                gridCell: `${String.fromCharCode(65 + gridCol)}${gridRow + 1}`,
+                faceBox: { x: box.x / video.videoWidth, y: box.y / video.videoHeight, w: box.width / video.videoWidth, h: box.height / video.videoHeight }
+              });
+            } else {
+              frames.push({
+                index: i,
+                timestamp: i / fps,
+                mouthOpenness: 0,
+                mouthWidth: 0,
+                phoneme: 'neutral',
+                confidence: 0,
+                lipCorners: { left: 0, right: 0 },
+                eyes: { left: 0, right: 0, avg: 0, isBlinking: false },
+                eyebrows: { left: 0.5, right: 0.5, avg: 0.5 },
+                headPose: { yaw: 0, pitch: 0, roll: 0 },
+                emotion: { emotion: 'neutral', intensity: 0 },
+                tongue: { visible: false, position: null, intensity: 0 },
+                mouthCenter: null,
+                gridCell: null,
+                faceBox: null
+              });
+            }
+          } catch (err) {
+            console.warn('Frame analysis error:', err);
+          }
+
+          setLipSyncProgress(Math.round(((i + 1) / frameCount) * 100));
+        }
+
+        setLipSyncData(frames);
+        setIsAnalyzingLipSync(false);
+      };
+
+      const exportLipSyncJSON = () => {
+        // Generate additional avatar control metadata
+        const blinkPattern = generateBlinkPattern(videoDuration, 15);
+        const breathPauses = detectBreathPauses(scriptWords);
+
+        const data = {
+          source: videoFile?.name,
+          duration: videoDuration,
+          fps: 15,
+          totalFrames: lipSyncData.length,
+          exportVersion: '2.0', // Enhanced avatar control format
+
+          // Script and alignment
+          script: { text: scriptText, words: scriptWords },
+          alignmentScore,
+
+          // Avatar control metadata
+          avatarControl: {
+            // Natural blink timing suggestions
+            suggestedBlinks: blinkPattern,
+            // Breath pause moments (good for chest animation)
+            breathPauses: breathPauses,
+            // Summary stats for calibration
+            stats: {
+              avgMouthOpenness: lipSyncData.length > 0 ? (lipSyncData.reduce((s, f) => s + f.mouthOpenness, 0) / lipSyncData.length).toFixed(3) : 0,
+              avgEyeOpenness: lipSyncData.length > 0 && lipSyncData[0].eyes ? (lipSyncData.reduce((s, f) => s + (f.eyes?.avg || 0), 0) / lipSyncData.length).toFixed(3) : 0,
+              blinkCount: lipSyncData.filter(f => f.eyes?.isBlinking).length,
+              emotionBreakdown: (() => {
+                const emotions = {};
+                lipSyncData.forEach(f => {
+                  const e = f.emotion?.emotion || 'neutral';
+                  emotions[e] = (emotions[e] || 0) + 1;
+                });
+                return emotions;
+              })(),
+              headMovementRange: lipSyncData.length > 0 && lipSyncData[0].headPose ? {
+                yaw: { min: Math.min(...lipSyncData.map(f => f.headPose?.yaw || 0)).toFixed(2), max: Math.max(...lipSyncData.map(f => f.headPose?.yaw || 0)).toFixed(2) },
+                pitch: { min: Math.min(...lipSyncData.map(f => f.headPose?.pitch || 0)).toFixed(2), max: Math.max(...lipSyncData.map(f => f.headPose?.pitch || 0)).toFixed(2) },
+                roll: { min: Math.min(...lipSyncData.map(f => f.headPose?.roll || 0)).toFixed(2), max: Math.max(...lipSyncData.map(f => f.headPose?.roll || 0)).toFixed(2) }
+              } : null
+            }
+          },
+
+          // Full frame data with all control parameters
+          frames: lipSyncData
+        };
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        saveAs(blob, `${videoFile?.name.replace(/\.[^/.]+$/, '') || 'video'}_avatar_control.json`);
+      };
+
+      const exportLipSyncCSV = () => {
+        // Enhanced CSV with all avatar control columns
+        const headers = [
+          'index', 'timestamp',
+          // Mouth
+          'mouthOpenness', 'mouthWidth', 'phoneme', 'confidence', 'lipCornerL', 'lipCornerR',
+          // Eyes
+          'eyeOpenL', 'eyeOpenR', 'isBlinking',
+          // Eyebrows
+          'browHeightL', 'browHeightR',
+          // Head pose
+          'headYaw', 'headPitch', 'headRoll',
+          // Emotion
+          'emotion', 'emotionIntensity',
+          // Tongue
+          'tongueVisible', 'tonguePosition',
+          // Position
+          'gridCell'
+        ];
+        const rows = lipSyncData.map(f =>
+          [
+            f.index,
+            f.timestamp.toFixed(3),
+            f.mouthOpenness.toFixed(3),
+            f.mouthWidth.toFixed(3),
+            f.phoneme,
+            f.confidence.toFixed(2),
+            (f.lipCorners?.left || 0).toFixed(3),
+            (f.lipCorners?.right || 0).toFixed(3),
+            (f.eyes?.left || 0).toFixed(3),
+            (f.eyes?.right || 0).toFixed(3),
+            f.eyes?.isBlinking ? 1 : 0,
+            (f.eyebrows?.left || 0.5).toFixed(3),
+            (f.eyebrows?.right || 0.5).toFixed(3),
+            (f.headPose?.yaw || 0).toFixed(3),
+            (f.headPose?.pitch || 0).toFixed(3),
+            (f.headPose?.roll || 0).toFixed(3),
+            f.emotion?.emotion || 'neutral',
+            (f.emotion?.intensity || 0).toFixed(2),
+            f.tongue?.visible ? 1 : 0,
+            f.tongue?.position || '',
+            f.gridCell || ''
+          ].join(',')
+        );
+        const csv = [headers.join(','), ...rows].join('\n');
+        const blob = new Blob([csv], { type: 'text/csv' });
+        saveAs(blob, `${videoFile?.name.replace(/\.[^/.]+$/, '') || 'video'}_avatar_control.csv`);
+      };
+
+      // Multi-sync
+      const syncVideos = () => {
+        if (videoRef.current && video2Ref.current) {
+          video2Ref.current.currentTime = Math.max(0, videoRef.current.currentTime + timeOffset);
+        }
+      };
+
+      // ============================================
+      // RENDER SIDEBAR
+      // ============================================
+      const renderSidebar = () => {
+        switch (activeMode) {
+          case 'frame-extract':
+            return (
+              <div className="flex flex-col gap-4">
+                <div className="card">
+                  <div className="card-header"><span className="card-title"><Icon name="clock" size={14} /> Frame Rate</span></div>
+                  <div className="card-body">
+                    <div className="form-group">
+                      <label className="form-label">Extract FPS</label>
+                      <select className="input w-full" value={extractFps} onChange={(e) => setExtractFps(+e.target.value)}>
+                        <option value="1">1 FPS</option>
+                        <option value="5">5 FPS</option>
+                        <option value="10">10 FPS</option>
+                        <option value="15">15 FPS</option>
+                        <option value="30">30 FPS</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="card">
+                  <div className="card-header"><span className="card-title"><Icon name="scissors" size={14} /> Time Range</span></div>
+                  <div className="card-body">
+                    <div className="flex gap-3 mb-3">
+                      <div className="form-group" style={{ flex: 1 }}>
+                        <label className="form-label">Start</label>
+                        <input type="text" className="input input-sm w-full font-mono" value={formatTime(extractStart)} readOnly />
+                      </div>
+                      <div className="form-group" style={{ flex: 1 }}>
+                        <label className="form-label">End</label>
+                        <input type="text" className="input input-sm w-full font-mono" value={formatTime(extractEnd)} readOnly />
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button className="btn btn-ghost btn-sm" onClick={() => videoRef.current && setExtractStart(videoRef.current.currentTime)}>Set Start</button>
+                      <button className="btn btn-ghost btn-sm" onClick={() => videoRef.current && setExtractEnd(videoRef.current.currentTime)}>Set End</button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="card">
+                  <div className="card-header"><span className="card-title"><Icon name="scan" size={14} /> Detection</span></div>
+                  <div className="card-body">
+                    <div className={`toggle ${detectSceneChanges ? 'on' : ''} mb-3`} onClick={() => setDetectSceneChanges(!detectSceneChanges)}>
+                      <div className="toggle-switch" />
+                      <span className="toggle-label">Scene Change Detection</span>
+                    </div>
+                    <div className={`toggle ${detectKeyframes ? 'on' : ''}`} onClick={() => setDetectKeyframes(!detectKeyframes)}>
+                      <div className="toggle-switch" />
+                      <span className="toggle-label">Face Keyframe Detection</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="card">
+                  <div className="card-header"><span className="card-title"><Icon name="download" size={14} /> Export</span></div>
+                  <div className="card-body">
+                    <div className="form-group mb-3">
+                      <label className="form-label">Format</label>
+                      <select className="input w-full" value={exportFormat} onChange={(e) => setExportFormat(e.target.value)}>
+                        <option value="png">PNG</option>
+                        <option value="jpeg">JPEG</option>
+                        <option value="webp">WebP</option>
+                      </select>
+                    </div>
+                    <button className="btn btn-primary btn-block mb-2" onClick={extractFrames} disabled={!videoUrl || isExtracting}>
+                      {isExtracting ? `Extracting ${extractProgress}%` : 'Extract Frames'}
+                    </button>
+                    {extractedFrames.length > 0 && (
+                      <button className="btn btn-secondary btn-block" onClick={exportSelectedFrames} disabled={selectedFrames.size === 0}>
+                        Export Selected ({selectedFrames.size})
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+
+          case 'pattern-library':
+            return (
+              <div className="flex flex-col gap-4">
+                <div className="card">
+                  <div className="card-header"><span className="card-title"><Icon name="layers" size={14} /> Capture</span></div>
+                  <div className="card-body">
+                    <button className={`btn ${patternDrawMode ? 'btn-primary' : 'btn-secondary'} btn-block mb-2`} onClick={() => setPatternDrawMode(!patternDrawMode)} disabled={!videoUrl}>
+                      {patternDrawMode ? 'Cancel' : 'Draw Region'}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="card">
+                  <div className="card-header"><span className="card-title">Library</span><span className="badge badge-info">{patterns.length}</span></div>
+                  <div className="card-body">
+                    <input type="text" className="search-input w-full mb-2" placeholder="Search..." value={patternSearch} onChange={(e) => setPatternSearch(e.target.value)} />
+                  </div>
+                </div>
+              </div>
+            );
+
+          case 'lip-sync':
+            return (
+              <div className="flex flex-col gap-4">
+                {/* Lip Sync Analysis */}
+                <div className="card">
+                  <div className="card-header">
+                    <span className="card-title"><Icon name="mic" size={14} /> Analysis</span>
+                    {faceApiLoaded ? <span className="badge badge-success">Ready</span> : <span className="badge badge-warning">Loading</span>}
+                  </div>
+                  <div className="card-body">
+                    <button className="btn btn-primary btn-block mb-2" onClick={analyzeLipSync} disabled={!videoUrl || !faceApiLoaded || isAnalyzingLipSync}>
+                      {isAnalyzingLipSync ? `${lipSyncProgress}%` : 'Analyze Lip Sync'}
+                    </button>
+                    {isAnalyzingLipSync && <div className="progress"><div className="progress-bar" style={{ width: `${lipSyncProgress}%` }} /></div>}
+                  </div>
+                </div>
+
+                {/* Script Input */}
+                <div className="card">
+                  <div className="card-header"><span className="card-title"><Icon name="type" size={14} /> Script</span></div>
+                  <div className="card-body">
+                    <textarea
+                      className="input w-full mb-2"
+                      placeholder="Enter your script/dialogue here..."
+                      value={scriptText}
+                      onChange={(e) => setScriptText(e.target.value)}
+                      rows={4}
+                    />
+                    <button className="btn btn-secondary btn-block mb-2" onClick={processScriptText} disabled={!scriptText.trim()}>
+                      Process Script ({scriptText.split(/\s+/).filter(w => w).length} words)
+                    </button>
+                    {scriptWords.length > 0 && (
+                      <div className="text-xs text-muted">
+                        {scriptWords.filter(w => w.startTime !== undefined).length}/{scriptWords.length} words timed
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Speech Recognition */}
+                <div className="card">
+                  <div className="card-header">
+                    <span className="card-title"><Icon name={isListening ? 'micOff' : 'mic'} size={14} /> Speech-to-Text</span>
+                    {recognitionSupported ? <span className="badge badge-success">Supported</span> : <span className="badge badge-danger">Not Supported</span>}
+                  </div>
+                  <div className="card-body">
+                    {recognitionSupported && (
+                      <>
+                        <div className={`recognition-status ${isListening ? 'listening' : ''} mb-2`}>
+                          <span className="dot" />
+                          <span className="text-xs">{isListening ? 'Listening...' : 'Ready'}</span>
+                        </div>
+                        <button className={`btn ${isListening ? 'btn-danger' : 'btn-secondary'} btn-block mb-2`} onClick={toggleListening}>
+                          {isListening ? 'Stop Listening' : 'Start Transcription'}
+                        </button>
+                        {transcribedText && (
+                          <>
+                            <div className="text-xs text-muted mb-2">{transcribedText}</div>
+                            <button className="btn btn-ghost btn-sm" onClick={applyTranscription}>Use This Text</button>
+                          </>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {/* Whisper API Transcription */}
+                <div className="card">
+                  <div className="card-header">
+                    <span className="card-title"><Icon name="zap" size={14} /> Whisper AI</span>
+                    <span className="badge badge-info">OpenAI</span>
+                  </div>
+                  <div className="card-body">
+                    <div className="form-group mb-3">
+                      <label className="form-label">API Key</label>
+                      <input
+                        type="password"
+                        className="input input-sm w-full"
+                        placeholder="sk-..."
+                        value={openaiApiKey}
+                        onChange={(e) => saveApiKey(e.target.value)}
+                      />
+                      <div className="text-xs text-muted mt-1">Stored locally in browser</div>
+                    </div>
+                    <button
+                      className="btn btn-primary btn-block mb-2"
+                      onClick={transcribeWithWhisper}
+                      disabled={!videoFile || !openaiApiKey || isTranscribing}
+                    >
+                      {isTranscribing ? <><span className="spinner" /> Transcribing...</> : 'Transcribe with Whisper'}
+                    </button>
+                    {transcribeProgress && (
+                      <div className={`text-xs ${transcribeProgress.startsWith('Error') ? 'text-danger' : transcribeProgress.startsWith('Done') ? 'text-success' : 'text-muted'}`}>
+                        {transcribeProgress}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Subtitle Import */}
+                <div className="card">
+                  <div className="card-header"><span className="card-title"><Icon name="fileText" size={14} /> Subtitles</span></div>
+                  <div className="card-body">
+                    <label className="btn btn-secondary btn-block mb-2" style={{ cursor: 'pointer' }}>
+                      Import SRT/VTT
+                      <input type="file" accept=".srt,.vtt" onChange={handleSubtitleImport} className="hidden" />
+                    </label>
+                    {scriptWords.filter(w => w.startTime !== undefined).length > 0 && (
+                      <button className="btn btn-secondary btn-block" onClick={exportToSRT}>Export SRT</button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Word Timing */}
+                {scriptWords.length > 0 && (
+                  <div className="card">
+                    <div className="card-header"><span className="card-title"><Icon name="alignLeft" size={14} /> Word Timing</span></div>
+                    <div className="card-body">
+                      {isTimingMode ? (
+                        <>
+                          <div className="text-xs text-accent mb-2">Timing: "{scriptWords[timingWordIndex]?.word}"</div>
+                          <div className="flex gap-2 mb-2">
+                            <button className="btn btn-secondary btn-sm" onClick={markWordStart}>Mark Start</button>
+                            <button className="btn btn-primary btn-sm" onClick={markWordEnd}>Mark End →</button>
+                          </div>
+                          <button className="btn btn-ghost btn-sm" onClick={() => { setIsTimingMode(false); setTimingWordIndex(-1); }}>Cancel</button>
+                        </>
+                      ) : (
+                        <>
+                          <button className="btn btn-secondary btn-block mb-2" onClick={startTimingMode}>Manual Timing Mode</button>
+                          <button className="btn btn-secondary btn-block mb-2" onClick={autoTimingFromLipSync} disabled={lipSyncData.length === 0}>
+                            Auto-Time from Lip Sync
+                          </button>
+                          <button className="btn btn-ghost btn-sm" onClick={clearAllTiming}>Clear All Timing</button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Alignment Score */}
+                {alignmentScore !== null && (
+                  <div className={`alignment-score ${alignmentScore >= 70 ? 'good' : alignmentScore >= 40 ? 'medium' : 'poor'}`}>
+                    <div>
+                      <div className="alignment-score-value">{alignmentScore}%</div>
+                      <div className="alignment-score-label">Alignment Score</div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Export */}
+                {lipSyncData.length > 0 && (
+                  <div className="card">
+                    <div className="card-header"><span className="card-title"><Icon name="download" size={14} /> Export</span></div>
+                    <div className="card-body">
+                      <div className="flex gap-2">
+                        <button className="btn btn-secondary btn-sm" onClick={exportLipSyncJSON}>JSON</button>
+                        <button className="btn btn-secondary btn-sm" onClick={exportLipSyncCSV}>CSV</button>
+                        <button className="btn btn-secondary btn-sm" onClick={exportToSRT}>SRT</button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+
+          case 'multi-sync':
+            return (
+              <div className="flex flex-col gap-4">
+                <div className="card">
+                  <div className="card-header"><span className="card-title"><Icon name="layers" size={14} /> View</span></div>
+                  <div className="card-body">
+                    <div className="flex gap-2">
+                      <button className={`btn btn-sm ${syncViewMode === 'side-by-side' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setSyncViewMode('side-by-side')}>Side</button>
+                      <button className={`btn btn-sm ${syncViewMode === 'overlay' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setSyncViewMode('overlay')}>Overlay</button>
+                      <button className={`btn btn-sm ${syncViewMode === 'diff' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setSyncViewMode('diff')}>Diff</button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="card">
+                  <div className="card-header"><span className="card-title"><Icon name="sync" size={14} /> Offset</span></div>
+                  <div className="card-body">
+                    <div className="form-group">
+                      <label className="form-label">Video 2: <span className="text-accent">{timeOffset.toFixed(2)}s</span></label>
+                      <input type="range" min="-10" max="10" step="0.1" value={timeOffset} onChange={(e) => setTimeOffset(+e.target.value)} />
+                    </div>
+                  </div>
+                </div>
+
+                {!video2Url && (
+                  <div className="card">
+                    <div className="card-header"><span className="card-title">Video 2</span></div>
+                    <div className="card-body">
+                      <label className="upload-zone" style={{ padding: '1.5rem' }} onDrop={(e) => handleDrop(e, true)} onDragOver={(e) => e.preventDefault()}>
+                        <input type="file" accept="video/*" onChange={(e) => handleFileChange(e, true)} className="hidden" />
+                        <div className="upload-text text-xs">Drop second video</div>
+                      </label>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+
+          default:
+            return null;
+        }
+      };
+
+      // ============================================
+      // RENDER MAIN CONTENT
+      // ============================================
+      const renderMainContent = () => {
+        if (!videoUrl) {
+          return (
+            <label className="upload-zone" onDrop={handleDrop} onDragOver={(e) => e.preventDefault()}>
+              <input type="file" accept="video/*" onChange={handleFileChange} className="hidden" />
+              <div className="upload-icon"><Icon name="upload" size={48} /></div>
+              <div className="upload-text">
+                <strong>Drop video here</strong> or click to browse<br />
+                <span className="text-muted text-xs">MP4, WebM, MOV supported</span>
+              </div>
+            </label>
+          );
+        }
+
+        switch (activeMode) {
+          case 'frame-extract':
+            return (
+              <>
+                <div className="video-wrapper mb-4">
+                  <div className="video-aspect"><video ref={videoRef} src={videoUrl} controls /></div>
+                </div>
+                {extractedFrames.length > 0 && (
+                  <div className="card">
+                    <div className="card-header"><span className="card-title">Frames ({extractedFrames.length})</span></div>
+                    <div className="card-body">
+                      <div className="frame-grid">
+                        {extractedFrames.map(frame => (
+                          <div key={frame.index} className={`frame-card ${selectedFrames.has(frame.index) ? 'selected' : ''}`} onClick={() => toggleFrameSelection(frame.index)}>
+                            <img src={frame.imageData} alt={`Frame ${frame.index}`} />
+                            <div className="frame-card-info">{formatTime(frame.time)}{frame.isSceneChange && ' [S]'}{frame.hasFace && ' [F]'}</div>
+                            {selectedFrames.has(frame.index) && <span className="checkmark">✓</span>}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
+            );
+
+          case 'pattern-library':
+            return (
+              <>
+                <div className="video-wrapper mb-4" style={{ cursor: patternDrawMode ? 'crosshair' : 'default' }}
+                  onMouseDown={patternDrawMode ? handlePatternMouseDown : undefined}
+                  onMouseMove={patternDrawMode ? handlePatternMouseMove : undefined}
+                  onMouseUp={patternDrawMode ? handlePatternMouseUp : undefined}
+                  onMouseLeave={patternDrawMode ? () => setCurrentPatternSelection(null) : undefined}
+                >
+                  <div className="video-aspect">
+                    <video ref={videoRef} src={videoUrl} controls={!patternDrawMode} />
+                    {currentPatternSelection && (
+                      <div style={{ position: 'absolute', left: `${currentPatternSelection.x * 100}%`, top: `${currentPatternSelection.y * 100}%`, width: `${currentPatternSelection.w * 100}%`, height: `${currentPatternSelection.h * 100}%`, border: '2px dashed var(--accent-primary)', background: 'rgba(0,255,231,0.1)', pointerEvents: 'none' }} />
+                    )}
+                  </div>
+                </div>
+                {filteredPatterns.length > 0 && (
+                  <div className="card">
+                    <div className="card-header"><span className="card-title">Patterns</span></div>
+                    <div className="card-body">
+                      <div className="pattern-gallery">
+                        {filteredPatterns.map(pattern => (
+                          <div key={pattern.id} className="pattern-card">
+                            <div className="pattern-card-image"><img src={pattern.thumbnail} alt={pattern.name} /></div>
+                            <div className="pattern-card-body">
+                              <div className="pattern-card-title">{pattern.name}</div>
+                              <button className="btn btn-ghost btn-sm" onClick={() => removePattern(pattern.id)} style={{ color: 'var(--accent-danger)' }}><Icon name="trash" size={12} /></button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
+            );
+
+          case 'lip-sync':
+            return (
+              <>
+                <div className="video-wrapper mb-4">
+                  <div className="video-aspect"><video ref={videoRef} src={videoUrl} controls /></div>
+                </div>
+
+                {/* Script Words Display */}
+                {scriptWords.length > 0 && (
+                  <div className="script-panel mb-4">
+                    <div className="text-xs text-muted mb-2">SCRIPT WORDS (click to jump)</div>
+                    <div className="script-words">
+                      {scriptWords.map((w, i) => (
+                        <div
+                          key={w.id}
+                          className={`script-word ${w.startTime !== undefined ? 'timed' : ''} ${i === activeWordIndex ? 'current' : ''} ${isTimingMode && i === timingWordIndex ? 'current' : ''}`}
+                          onClick={() => {
+                            if (w.startTime !== undefined && videoRef.current) {
+                              videoRef.current.currentTime = w.startTime;
+                            }
+                          }}
+                        >
+                          {w.word}
+                          <span className="phonemes">{w.mouthShapes.join('-')}</span>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Word Timeline */}
+                    {scriptWords.some(w => w.startTime !== undefined) && (
+                      <div className="word-timeline">
+                        {wordTimelineMarkers.map((m, i) => (
+                          <div
+                            key={m.id}
+                            className={`word-marker ${i === activeWordIndex ? 'active' : ''}`}
+                            style={{
+                              left: `${m.left}%`,
+                              width: `${m.width}%`
+                            }}
+                            title={m.word}
+                          >
+                            {m.word}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Avatar Control Dashboard */}
+                {showPhonemeGraph && lipSyncData.length > 0 && (
+                  <div className="card mb-4">
+                    <div className="card-header"><span className="card-title"><Icon name="activity" size={14} /> Avatar Control Graphs</span></div>
+                    <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+
+                      {/* Mouth Openness Graph */}
+                      <div>
+                        <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '4px' }}>Mouth Openness</div>
+                        <div className="phoneme-graph" style={{ height: '50px' }}>
+                          <svg width="100%" height="100%" viewBox={`0 0 ${lipSyncData.length} 100`} preserveAspectRatio="none">
+                            <defs>
+                              <linearGradient id="mouthGrad" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stopColor="rgba(0,255,231,0.3)" />
+                                <stop offset="100%" stopColor="rgba(0,255,231,0)" />
+                              </linearGradient>
+                            </defs>
+                            <path fill="url(#mouthGrad)" d={`M0,100 ${lipSyncData.map((f, i) => `L${i},${100 - f.mouthOpenness * 100}`).join(' ')} L${lipSyncData.length},100 Z`} />
+                            <path stroke="var(--accent-primary)" strokeWidth="1.5" fill="none" d={`M0,${100 - lipSyncData[0].mouthOpenness * 100} ${lipSyncData.map((f, i) => `L${i},${100 - f.mouthOpenness * 100}`).join(' ')}`} />
+                          </svg>
+                        </div>
+                      </div>
+
+                      {/* Eye Openness Graph */}
+                      {lipSyncData[0]?.eyes && (
+                        <div>
+                          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '4px' }}>Eye Openness <span style={{ color: 'var(--accent-danger)', fontSize: '0.6rem' }}>(blinks shown as dips)</span></div>
+                          <div className="phoneme-graph" style={{ height: '40px' }}>
+                            <svg width="100%" height="100%" viewBox={`0 0 ${lipSyncData.length} 100`} preserveAspectRatio="none">
+                              <defs>
+                                <linearGradient id="eyeGrad" x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="0%" stopColor="rgba(255,184,0,0.3)" />
+                                  <stop offset="100%" stopColor="rgba(255,184,0,0)" />
+                                </linearGradient>
+                              </defs>
+                              <path fill="url(#eyeGrad)" d={`M0,100 ${lipSyncData.map((f, i) => `L${i},${100 - (f.eyes?.avg || 0) * 100}`).join(' ')} L${lipSyncData.length},100 Z`} />
+                              <path stroke="var(--accent-warning)" strokeWidth="1.5" fill="none" d={`M0,${100 - (lipSyncData[0].eyes?.avg || 0) * 100} ${lipSyncData.map((f, i) => `L${i},${100 - (f.eyes?.avg || 0) * 100}`).join(' ')}`} />
+                              {/* Blink markers */}
+                              {lipSyncData.map((f, i) => f.eyes?.isBlinking ? (
+                                <circle key={i} cx={i} cy={85} r="2" fill="var(--accent-danger)" />
+                              ) : null)}
+                            </svg>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Eyebrow Height Graph */}
+                      {lipSyncData[0]?.eyebrows && (
+                        <div>
+                          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '4px' }}>Eyebrow Height</div>
+                          <div className="phoneme-graph" style={{ height: '40px' }}>
+                            <svg width="100%" height="100%" viewBox={`0 0 ${lipSyncData.length} 100`} preserveAspectRatio="none">
+                              <path stroke="var(--accent-secondary)" strokeWidth="1.5" fill="none" opacity="0.7" d={`M0,${100 - (lipSyncData[0].eyebrows?.left || 0.5) * 100} ${lipSyncData.map((f, i) => `L${i},${100 - (f.eyebrows?.left || 0.5) * 100}`).join(' ')}`} />
+                              <path stroke="#00FF88" strokeWidth="1.5" fill="none" opacity="0.7" d={`M0,${100 - (lipSyncData[0].eyebrows?.right || 0.5) * 100} ${lipSyncData.map((f, i) => `L${i},${100 - (f.eyebrows?.right || 0.5) * 100}`).join(' ')}`} />
+                            </svg>
+                          </div>
+                          <div style={{ display: 'flex', gap: '12px', fontSize: '0.6rem', color: 'var(--text-muted)' }}>
+                            <span style={{ color: 'var(--accent-secondary)' }}>● Left</span>
+                            <span style={{ color: '#00FF88' }}>● Right</span>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Head Pose Graph */}
+                      {lipSyncData[0]?.headPose && (
+                        <div>
+                          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '4px' }}>Head Pose</div>
+                          <div className="phoneme-graph" style={{ height: '50px' }}>
+                            <svg width="100%" height="100%" viewBox={`0 0 ${lipSyncData.length} 100`} preserveAspectRatio="none">
+                              {/* Center line */}
+                              <line x1="0" y1="50" x2={lipSyncData.length} y2="50" stroke="rgba(255,255,255,0.1)" strokeWidth="1" />
+                              {/* Yaw (left-right) */}
+                              <path stroke="#FF6B6B" strokeWidth="1.5" fill="none" d={`M0,${50 - (lipSyncData[0].headPose?.yaw || 0) * 50} ${lipSyncData.map((f, i) => `L${i},${50 - (f.headPose?.yaw || 0) * 50}`).join(' ')}`} />
+                              {/* Pitch (up-down) */}
+                              <path stroke="#4ECDC4" strokeWidth="1.5" fill="none" d={`M0,${50 - (lipSyncData[0].headPose?.pitch || 0) * 50} ${lipSyncData.map((f, i) => `L${i},${50 - (f.headPose?.pitch || 0) * 50}`).join(' ')}`} />
+                              {/* Roll (tilt) */}
+                              <path stroke="#FFE66D" strokeWidth="1.5" fill="none" d={`M0,${50 - (lipSyncData[0].headPose?.roll || 0) * 50} ${lipSyncData.map((f, i) => `L${i},${50 - (f.headPose?.roll || 0) * 50}`).join(' ')}`} />
+                            </svg>
+                          </div>
+                          <div style={{ display: 'flex', gap: '12px', fontSize: '0.6rem', color: 'var(--text-muted)' }}>
+                            <span style={{ color: '#FF6B6B' }}>● Yaw</span>
+                            <span style={{ color: '#4ECDC4' }}>● Pitch</span>
+                            <span style={{ color: '#FFE66D' }}>● Roll</span>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Lip Corners Graph */}
+                      {lipSyncData[0]?.lipCorners && (
+                        <div>
+                          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '4px' }}>Lip Corners (Smile/Frown)</div>
+                          <div className="phoneme-graph" style={{ height: '40px' }}>
+                            <svg width="100%" height="100%" viewBox={`0 0 ${lipSyncData.length} 100`} preserveAspectRatio="none">
+                              <line x1="0" y1="50" x2={lipSyncData.length} y2="50" stroke="rgba(255,255,255,0.1)" strokeWidth="1" />
+                              <path stroke="#FF69B4" strokeWidth="1.5" fill="none" d={`M0,${50 - (lipSyncData[0].lipCorners?.left || 0) * 50} ${lipSyncData.map((f, i) => `L${i},${50 - (f.lipCorners?.left || 0) * 50}`).join(' ')}`} />
+                              <path stroke="#87CEEB" strokeWidth="1.5" fill="none" d={`M0,${50 - (lipSyncData[0].lipCorners?.right || 0) * 50} ${lipSyncData.map((f, i) => `L${i},${50 - (f.lipCorners?.right || 0) * 50}`).join(' ')}`} />
+                            </svg>
+                          </div>
+                          <div style={{ display: 'flex', gap: '12px', fontSize: '0.6rem', color: 'var(--text-muted)' }}>
+                            <span style={{ color: '#FF69B4' }}>● Left</span>
+                            <span style={{ color: '#87CEEB' }}>● Right</span>
+                            <span style={{ marginLeft: 'auto' }}>↑ Smile / ↓ Frown</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Avatar Control Stats */}
+                {lipSyncData.length > 0 && (
+                  <div className="card mb-4">
+                    <div className="card-header"><span className="card-title"><Icon name="bar-chart-2" size={14} /> Avatar Control Stats</span></div>
+                    <div className="card-body">
+                      <div className="analysis-summary">
+                        {/* Phoneme distribution */}
+                        <div style={{ marginBottom: '12px' }}>
+                          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '6px' }}>Phoneme Distribution</div>
+                          {['AH', 'EE', 'OH', 'MM', 'neutral'].map(phoneme => {
+                            const count = phonemeCounts.counts[phoneme] || 0;
+                            const pct = phonemeCounts.total > 0 ? ((count / phonemeCounts.total) * 100) : 0;
+                            return (
+                              <div key={phoneme} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                                <span style={{ width: '50px', fontSize: '0.7rem', color: 'var(--text-secondary)' }}>{phoneme}</span>
+                                <div style={{ flex: 1, height: '8px', background: 'var(--bg-dark)', borderRadius: '4px', overflow: 'hidden' }}>
+                                  <div style={{ width: `${pct}%`, height: '100%', background: phoneme === 'neutral' ? 'var(--text-muted)' : 'var(--accent-primary)', borderRadius: '4px' }} />
+                                </div>
+                                <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', width: '40px', textAlign: 'right' }}>{pct.toFixed(0)}%</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {/* Detected blinks */}
+                        {lipSyncData[0]?.eyes && (
+                          <div className="analysis-summary-row">
+                            <span className="analysis-summary-label">Detected Blinks</span>
+                            <span className="analysis-summary-value">{lipSyncData.filter(f => f.eyes?.isBlinking).length}</span>
+                          </div>
+                        )}
+
+                        {/* Emotion breakdown */}
+                        {lipSyncData[0]?.emotion && (
+                          <div style={{ marginTop: '12px' }}>
+                            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '6px' }}>Emotion Detection</div>
+                            {(() => {
+                              const emotions = {};
+                              lipSyncData.forEach(f => {
+                                const e = f.emotion?.emotion || 'neutral';
+                                emotions[e] = (emotions[e] || 0) + 1;
+                              });
+                              return Object.entries(emotions).map(([emotion, count]) => (
+                                <div key={emotion} className="analysis-summary-row">
+                                  <span className="analysis-summary-label" style={{ textTransform: 'capitalize' }}>{emotion}</span>
+                                  <span className="analysis-summary-value">{((count / lipSyncData.length) * 100).toFixed(0)}%</span>
+                                </div>
+                              ));
+                            })()}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
+            );
+
+          case 'multi-sync':
+            return syncViewMode === 'side-by-side' ? (
+              <div className="multi-video-grid">
+                <div className="video-slot">
+                  <div className="video-slot-header"><span className="video-slot-title">Video 1</span></div>
+                  <div className="video-wrapper"><div className="video-aspect"><video ref={videoRef} src={videoUrl} controls onTimeUpdate={syncVideos} /></div></div>
+                </div>
+                <div className="video-slot">
+                  <div className="video-slot-header"><span className="video-slot-title">Video 2</span></div>
+                  <div className="video-wrapper"><div className="video-aspect">
+                    {video2Url ? <video ref={video2Ref} src={video2Url} muted /> : <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-muted)' }}>Upload second video</div>}
+                  </div></div>
+                </div>
+              </div>
+            ) : (
+              <div className="video-wrapper">
+                <div className="video-aspect">
+                  <video ref={videoRef} src={videoUrl} controls onTimeUpdate={syncVideos} />
+                  {video2Url && <video ref={video2Ref} src={video2Url} muted style={{ opacity: 0.5, mixBlendMode: syncViewMode === 'diff' ? 'difference' : 'screen' }} />}
+                </div>
+              </div>
+            );
+
+          default:
+            return null;
+        }
+      };
+
+      return (
+        <div className="app">
+          <header className="header">
+            <div className="header-content">
+              <div className="logo">
+                <div className="logo-icon"><Icon name="video" size={20} /></div>
+                <span className="logo-text">Video Pattern Toolkit</span>
+              </div>
+
+              <div className="mode-tabs">
+                <button className={`mode-tab ${activeMode === 'frame-extract' ? 'active' : ''}`} onClick={() => setActiveMode('frame-extract')}>Frames</button>
+                <button className={`mode-tab ${activeMode === 'pattern-library' ? 'active' : ''}`} onClick={() => setActiveMode('pattern-library')}>Patterns</button>
+                <button className={`mode-tab ${activeMode === 'lip-sync' ? 'active' : ''}`} onClick={() => setActiveMode('lip-sync')}>Lip Sync</button>
+                <button className={`mode-tab ${activeMode === 'multi-sync' ? 'active' : ''}`} onClick={() => setActiveMode('multi-sync')}>Multi-Sync</button>
+              </div>
+
+              <div className="status-badges">
+                {cvLoaded ? <span className="badge badge-success">OpenCV</span> : <span className="badge badge-warning">OpenCV...</span>}
+                {faceApiLoaded ? <span className="badge badge-success">face-api</span> : <span className="badge badge-warning">face-api...</span>}
+                {recognitionSupported && <span className="badge badge-info">Speech</span>}
+                {videoUrl && <span className="badge badge-info">Video</span>}
+              </div>
+            </div>
+          </header>
+
+          <main className="main">
+            <div className="main-grid">
+              <div className="card">
+                <div className="card-body">
+                  {videoFile && (
+                    <div className="file-info">
+                      <div className="file-icon"><Icon name="file" size={16} /></div>
+                      <div className="file-details">
+                        <div className="file-name">{videoFile.name}</div>
+                        <div className="file-size">{(videoFile.size / 1024 / 1024).toFixed(2)} MB | {formatTime(videoDuration)}</div>
+                      </div>
+                      <button className="btn btn-ghost" onClick={() => clearVideo()}><Icon name="x" size={16} /></button>
+                    </div>
+                  )}
+                  {renderMainContent()}
+                </div>
+              </div>
+              {renderSidebar()}
+            </div>
+          </main>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
